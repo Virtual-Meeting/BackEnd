@@ -39,7 +39,7 @@ mvnw
 mvnw.cmd
 
 # 개인 ssl 인증서
-/src/main/resources/static/keystore.jks
+/src/main/resources/keystore.jks
 
 # 개인 인증서 주요 정보
 /src/main/resources/application.properties
