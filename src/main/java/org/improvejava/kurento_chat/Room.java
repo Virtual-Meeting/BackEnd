@@ -37,12 +37,6 @@ public class Room implements Closeable {
     return roomId;
   }
 
-  public void setRoomCreator(Participant roomCreator) {
-    if (this.roomCreator == null) {
-      this.roomCreator = roomCreator;
-    }
-  }
-
   @PreDestroy
   private void shutdown() {
     this.close();
@@ -57,17 +51,19 @@ public class Room implements Closeable {
     return participant;
   }
 
-  public UserSession createRoom(String userName, String userId, WebSocketSession session) throws IOException {
+  public UserSession createRoom(String userName, String userId, WebSocketSession session, Participant roomCreator) throws IOException {
     log.info("Participant {} / {} created room {}", userName, userId, this.roomId);
     final UserSession participant = new UserSession(userName, this.roomId, userId, session, this.pipeline);
     addNewUserParticipantsList(participant);
     participants.put(participant.getUserId(), participant);
+    this.roomCreator = roomCreator;
 
     JsonObject createRoomMsg = new JsonObject();
     createRoomMsg.addProperty("action", "roomCreated");
     createRoomMsg.addProperty("userId", participant.getUserId());
     createRoomMsg.addProperty("userName", participant.getUserName());
     createRoomMsg.addProperty("roomId", this.roomId);
+    createRoomMsg.addProperty("creator", roomCreator.toString());
 
     participant.sendMessage(createRoomMsg);
     return participant;
