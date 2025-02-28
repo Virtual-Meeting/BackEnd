@@ -11,9 +11,11 @@ public class UserRegistry {
   Logger logger = Logger.getLogger(UserRegistry.class.getName());
 
   private final ConcurrentHashMap<String, UserSession> userSessionByUserId = new ConcurrentHashMap<>();
+  private final ConcurrentHashMap<String, UserSession> userSessionBySessionId = new ConcurrentHashMap<>();
 
   public void register(UserSession user) {
-    userSessionByUserId.put(user.getSession().getId(), user);
+    userSessionByUserId.put(user.getUserId(), user);
+    userSessionBySessionId.put(user.getSession().getId(), user);
   }
 
   public UserSession getByUserId(String userId) {
@@ -21,7 +23,7 @@ public class UserRegistry {
   }
 
   public UserSession getBySession(WebSocketSession session) {
-    return userSessionByUserId.get(session.getId());
+    return userSessionBySessionId.get(session.getId());
   }
 
   public boolean exists(String userId) {
