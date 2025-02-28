@@ -1,6 +1,7 @@
 package org.improvejava.kurento_chat;
 
 import com.google.gson.JsonObject;
+import lombok.ToString;
 import org.kurento.client.*;
 import org.kurento.jsonrpc.JsonUtils;
 import org.slf4j.Logger;
@@ -13,6 +14,7 @@ import java.io.IOException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
+@ToString
 public class UserSession implements Closeable {
 
   private static final Logger log = LoggerFactory.getLogger(UserSession.class);
@@ -190,6 +192,50 @@ public class UserSession implements Closeable {
     log.debug("USER {} / {}: Sending message {}", userName, userId, message);
     synchronized (session) {
       session.sendMessage(new TextMessage(message.toString()));
+    }
+  }
+
+  // 같은 방에 있는 사용자끼리만 보낼 수 있게 설정 추가 필요
+  public void sendMessage(UserSession sender, String message) throws IOException {
+    JsonObject messageToSend = new JsonObject();
+
+    log.debug("USER {} / {}: Sending message {} to USER {} / {}", sender.userName, sender.userId, message, userName, userId);
+
+    messageToSend.addProperty("action", "sendChat");
+    messageToSend.addProperty("senderId", sender.userId);
+    messageToSend.addProperty("senderName", sender.userName);
+    messageToSend.addProperty("receiverId", userId);
+    messageToSend.addProperty("receiverName", userName);
+    messageToSend.addProperty("message", message);
+
+    synchronized (sender.session) {
+      sender.session.sendMessage(new TextMessage(messageToSend.toString()));
+    }
+
+    synchronized (session) {
+      session.sendMessage(new TextMessage(messageToSend.toString()));
+    }
+  }
+
+  // 같은 방에 있는 사용자끼리만 보낼 수 있게 설정 추가 필요
+  public void sendEmoji(UserSession sender, String selectedEmoji) throws IOException {
+    JsonObject emojiToSend = new JsonObject();
+
+    log.debug("USER {} / {}: Sending emoji {} to USER {} / {}", sender.userName, sender.userId, selectedEmoji, userName, userId);
+
+    emojiToSend.addProperty("action", "sendEmoji");
+    emojiToSend.addProperty("senderId", sender.userId);
+    emojiToSend.addProperty("senderName", sender.userName);
+    emojiToSend.addProperty("receiverId", userId);
+    emojiToSend.addProperty("receiverName", userName);
+    emojiToSend.addProperty("emoji", selectedEmoji);
+
+    synchronized (sender.session) {
+      sender.session.sendMessage(new TextMessage(emojiToSend.toString()));
+    }
+
+    synchronized (session) {
+      session.sendMessage(new TextMessage(emojiToSend.toString()));
     }
   }
 

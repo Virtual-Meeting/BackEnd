@@ -36,6 +36,7 @@ public class CallHandler extends TextWebSocketHandler {
   @Override
   public void handleTextMessage(WebSocketSession session, TextMessage message) throws Exception {
     final JsonObject jsonMessage = gson.fromJson(message.getPayload(), JsonObject.class);
+    System.out.println("receive message: " + jsonMessage);
 
     final UserSession user = registry.getBySession(session);
 
@@ -65,8 +66,9 @@ public class CallHandler extends TextWebSocketHandler {
         break;
 
       case "receiveVideoFrom":
-        final String senderId = jsonMessage.get("userId").getAsString();
-        final UserSession sender = registry.getByUserId(senderId);
+        final String videoSenderId = jsonMessage.get("userId").getAsString();
+        final UserSession sender = registry.getByUserId(videoSenderId);
+        System.out.println("THIS IS SENDER : !!!! " + sender);
         final String sdpOffer = jsonMessage.get("sdpOffer").getAsString();
         user.receiveVideoFrom(sender, sdpOffer);
         break;
@@ -75,6 +77,20 @@ public class CallHandler extends TextWebSocketHandler {
           if (user != null) {
             exitRoom(user);
           }
+        break;
+
+      case "sendChat":
+        final String messageSenderId = jsonMessage.get("senderId").getAsString();
+        final String messageReceiverId = jsonMessage.get("receiverId").getAsString();
+        final String chatMessage = jsonMessage.get("message").getAsString();
+        sendChat(messageSenderId, messageReceiverId, chatMessage);
+        break;
+
+      case "sendEmoji":
+        final String emojiSenderId = jsonMessage.get("senderId").getAsString();
+        final String emojiReceiverId = jsonMessage.get("receiverId").getAsString();
+        final String selectedEmoji = jsonMessage.get("emoji").getAsString();
+        sendEmoji(emojiSenderId, emojiReceiverId, selectedEmoji);
         break;
 
       default:
@@ -108,9 +124,8 @@ public class CallHandler extends TextWebSocketHandler {
     log.info("PARTICIPANT {} / {} : trying to make room", userName, userId);
 
     Room room = roomManager.createRoom();
-    final UserSession user = room.createRoom(userName, userId, session);
     Participant participant = new Participant(userId, userName);
-    room.setRoomCreator(participant);
+    final UserSession user = room.createRoom(userName, userId, session, participant);
     registry.register(user);
   }
 
@@ -120,5 +135,20 @@ public class CallHandler extends TextWebSocketHandler {
     if (room.getParticipants().isEmpty()) {
       roomManager.removeRoom(room);
     }
+  }
+
+  private void sendChat(String messageSenderId, String messageReceiverId, String chatMessage) throws IOException {
+    registry.printAllInfo();
+    UserSession messageSender = registry.getByUserId(messageSenderId);
+    UserSession messageReceiver = registry.getByUserId(messageReceiverId);
+
+    messageReceiver.sendMessage(messageSender, chatMessage);
+  }
+
+  private void sendEmoji(String emojiSenderId, String emojiReceiverId, String selectedEmoji) throws IOException {
+    UserSession emojiSender = registry.getByUserId(emojiSenderId);
+    UserSession emojiReceiver = registry.getByUserId(emojiReceiverId);
+
+    emojiReceiver.sendEmoji(emojiSender, selectedEmoji);
   }
 }
