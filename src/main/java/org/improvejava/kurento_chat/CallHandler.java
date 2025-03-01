@@ -138,7 +138,6 @@ public class CallHandler extends TextWebSocketHandler {
   }
 
   private void sendChat(String messageSenderId, String messageReceiverId, String chatMessage) throws IOException {
-    registry.printAllInfo();
     UserSession messageSender = registry.getByUserId(messageSenderId);
     UserSession messageReceiver = registry.getByUserId(messageReceiverId);
 
