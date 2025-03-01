@@ -41,7 +41,7 @@ public class UserSession implements Closeable {
 
     this.outgoingMedia.addIceCandidateFoundListener(event -> {
         JsonObject response = new JsonObject();
-        response.addProperty("eventId", "iceCandidate");
+        response.addProperty("eventId", "onIceCandidate");
         response.addProperty("userId", userId);
         response.add("candidate", JsonUtils.toJsonObject(event.getCandidate()));
         try {
@@ -110,7 +110,7 @@ public class UserSession implements Closeable {
           response.addProperty("action", "onIceCandidate");
           response.addProperty("userName", sender.getUserName());
           response.addProperty("userId", sender.getUserId());
-          response.add("participants", JsonUtils.toJsonObject(event.getCandidate()));
+          response.add("candidate", JsonUtils.toJsonObject(event.getCandidate()));
           try {
               synchronized (session) {
                   session.sendMessage(new TextMessage(response.toString()));
@@ -248,12 +248,6 @@ public class UserSession implements Closeable {
         webRtc.addIceCandidate(candidate);
       }
     }
-
-    JsonObject response = new JsonObject();
-    response.addProperty("action", "onIceCandidate");
-    response.addProperty("userName", this.getUserName());
-    response.addProperty("userId", this.getUserId());
-    this.sendMessage(response);
   }
 
   @Override
