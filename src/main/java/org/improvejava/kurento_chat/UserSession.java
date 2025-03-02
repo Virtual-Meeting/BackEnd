@@ -41,7 +41,7 @@ public class UserSession implements Closeable {
 
     this.outgoingMedia.addIceCandidateFoundListener(event -> {
         JsonObject response = new JsonObject();
-        response.addProperty("eventId", "onIceCandidate");
+        response.addProperty("action", "onIceCandidate");
         response.addProperty("userId", userId);
         response.add("candidate", JsonUtils.toJsonObject(event.getCandidate()));
         try {
