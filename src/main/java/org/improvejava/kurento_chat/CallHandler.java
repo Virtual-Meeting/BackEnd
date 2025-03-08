@@ -14,6 +14,7 @@ import org.springframework.web.socket.WebSocketSession;
 import org.springframework.web.socket.handler.TextWebSocketHandler;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.UUID;
 
 @Component
@@ -35,41 +36,39 @@ public class CallHandler extends TextWebSocketHandler {
 
   @Override
   public void handleTextMessage(WebSocketSession session, TextMessage message) throws Exception {
-    final JsonObject jsonMessage = gson.fromJson(message.getPayload(), JsonObject.class);
-    System.out.println("receive message: " + jsonMessage);
+    final JsonObject receivedMessage = gson.fromJson(message.getPayload(), JsonObject.class);
 
     final UserSession user = registry.getBySession(session);
 
     if (user != null) {
-      log.debug("Incoming message from user '{}': {}", user.getUserName(), jsonMessage);
+      log.debug("Incoming message from user '{}': {}", user.getUserName(), receivedMessage);
     } else {
-      log.debug("Incoming message from new user: {}", jsonMessage);
+      log.info("Incoming message from new user: {}", receivedMessage);
     }
 
-    switch (jsonMessage.get("eventId").getAsString()) {
+    switch (receivedMessage.get("eventId").getAsString()) {
       case "joinRoom":
-        joinRoom(jsonMessage, session);
+        joinRoom(receivedMessage, session);
         break;
 
       case "createRoom":
-        createRoom(jsonMessage, session);
+        createRoom(receivedMessage, session);
         break;
 
       case "onIceCandidate":
-        JsonObject candidate = jsonMessage.get("candidate").getAsJsonObject();
+        JsonObject candidateInfo = receivedMessage.get("candidate").getAsJsonObject();
 
         if (user != null) {
-          IceCandidate cand = new IceCandidate(candidate.get("candidate").getAsString(),
-                  candidate.get("sdpMid").getAsString(), candidate.get("sdpMLineIndex").getAsInt());
-          user.addCandidate(cand, jsonMessage.get("userId").getAsString());
+          IceCandidate candidate = new IceCandidate(candidateInfo.get("candidate").getAsString(),
+                  candidateInfo.get("sdpMid").getAsString(), candidateInfo.get("sdpMLineIndex").getAsInt());
+          user.addCandidate(candidate, receivedMessage.get("userId").getAsString());
         }
         break;
 
       case "receiveVideoFrom":
-        final String videoSenderId = jsonMessage.get("userId").getAsString();
+        final String videoSenderId = receivedMessage.get("userId").getAsString();
         final UserSession sender = registry.getByUserId(videoSenderId);
-        System.out.println("THIS IS SENDER : !!!! " + sender);
-        final String sdpOffer = jsonMessage.get("sdpOffer").getAsString();
+        final String sdpOffer = receivedMessage.get("sdpOffer").getAsString();
         user.receiveVideoFrom(sender, sdpOffer);
         break;
 
@@ -80,16 +79,21 @@ public class CallHandler extends TextWebSocketHandler {
         break;
 
       case "sendChat":
-        final String messageSenderId = jsonMessage.get("senderId").getAsString();
-        final String messageReceiverId = jsonMessage.get("receiverId").getAsString();
-        final String chatMessage = jsonMessage.get("message").getAsString();
-        sendChat(messageSenderId, messageReceiverId, chatMessage);
+        final String messageSenderId = receivedMessage.get("senderId").getAsString();
+        final String messageReceiverId = receivedMessage.get("receiverId").getAsString() == null ? "toAll" : receivedMessage.get("receiverId").getAsString();
+        final String chatMessage = receivedMessage.get("message").getAsString();
+        final boolean isSendToAll = receivedMessage.get("isSendToAll").getAsBoolean();
+        if (isSendToAll) {
+          sendChatToAll(messageSenderId, chatMessage);
+        } else {
+          sendChat(messageSenderId, messageReceiverId, chatMessage);
+        }
         break;
 
       case "sendEmoji":
-        final String emojiSenderId = jsonMessage.get("senderId").getAsString();
-        final String emojiReceiverId = jsonMessage.get("receiverId").getAsString();
-        final String selectedEmoji = jsonMessage.get("emoji").getAsString();
+        final String emojiSenderId = receivedMessage.get("senderId").getAsString();
+        final String emojiReceiverId = receivedMessage.get("receiverId").getAsString();
+        final String selectedEmoji = receivedMessage.get("emoji").getAsString();
         sendEmoji(emojiSenderId, emojiReceiverId, selectedEmoji);
         break;
 
@@ -142,6 +146,14 @@ public class CallHandler extends TextWebSocketHandler {
     UserSession messageReceiver = registry.getByUserId(messageReceiverId);
 
     messageReceiver.sendMessage(messageSender, chatMessage);
+  }
+
+  private void sendChatToAll(String messageSenderId, String chatMessage) throws IOException {
+    UserSession messageSender = registry.getByUserId(messageSenderId);
+    String roomId = messageSender.getRoomId();
+
+    List<UserSession> receiverList = registry.getUserSessionsBy(roomId);
+    UserSession.sendMessageToAll(messageSender, receiverList, chatMessage);
   }
 
   private void sendEmoji(String emojiSenderId, String emojiReceiverId, String selectedEmoji) throws IOException {
