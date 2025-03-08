@@ -3,6 +3,7 @@ package org.improvejava.kurento_chat;
 import org.springframework.stereotype.Component;
 import org.springframework.web.socket.WebSocketSession;
 
+import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Logger;
 
@@ -26,6 +27,12 @@ public class UserRegistry {
     return userSessionBySessionId.get(session.getId());
   }
 
+  public List<UserSession> getUserSessionsBy(String roomId) {
+    return userSessionByUserId.values().stream()
+            .filter(userSession -> userSession.getRoomId().equals(roomId))
+            .toList();
+  }
+
   public boolean exists(String userId) {
     return userSessionByUserId.containsKey(userId);
   }
@@ -33,7 +40,8 @@ public class UserRegistry {
   public UserSession removeBySession(WebSocketSession session) {
     final UserSession user = getBySession(session);
     try {
-      userSessionByUserId.remove(session.getId());
+      userSessionByUserId.remove(user.getUserId());
+      userSessionBySessionId.remove(session.getId());
     } catch (NullPointerException e) {
       logger.warning(e.getMessage() + " session이 null이라 지울 수 없습니다.");
     }
