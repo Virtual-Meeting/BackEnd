@@ -11,6 +11,8 @@ import org.springframework.web.socket.WebSocketSession;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
@@ -27,7 +29,7 @@ public class UserSession implements Closeable {
 
   private final String roomId;
   private final WebRtcEndpoint outgoingMedia;
-  private final ConcurrentMap<String, WebRtcEndpoint> incomingMedia = new ConcurrentHashMap<>();
+  private final ConcurrentMap<String, WebRtcEndpoint> incomingMediaByUserId = new ConcurrentHashMap<>();
 
   public UserSession(final String userName, String roomId, String userId, final WebSocketSession session,
                      MediaPipeline pipeline) {
@@ -100,7 +102,7 @@ public class UserSession implements Closeable {
 
     log.debug("PARTICIPANT {} / {}: receiving video from {} / {}", this.userName, this.userId, sender.getUserName(), sender.getUserId());
 
-    WebRtcEndpoint incoming = incomingMedia.get(sender.getUserId());
+    WebRtcEndpoint incoming = incomingMediaByUserId.get(sender.getUserId());
     if (incoming == null) {
       log.debug("PARTICIPANT {} / {}: creating new endpoint for {} / {}", this.userName, this.userId, sender.getUserName(), sender.getUserId());
       incoming = new WebRtcEndpoint.Builder(pipeline).build();
@@ -120,7 +122,7 @@ public class UserSession implements Closeable {
           }
       });
 
-      incomingMedia.put(sender.getUserId(), incoming);
+      incomingMediaByUserId.put(sender.getUserId(), incoming);
     }
 
     log.debug("PARTICIPANT {} / {}: obtained endpoint for {} / {}", this.userName, this.userId, sender.getUserName(), sender.getUserId());
@@ -131,7 +133,7 @@ public class UserSession implements Closeable {
 
   public void cancelVideoFrom(final String senderId) {
     log.debug("PARTICIPANT {} / {} : canceling video reception from {}", this.userName, this.userId, senderId);
-    final WebRtcEndpoint incoming = incomingMedia.remove(senderId);
+    final WebRtcEndpoint incoming = incomingMediaByUserId.remove(senderId);
 
     log.debug("PARTICIPANT {} / {}: removing endpoint for {}", this.userName, this.userId, senderId);
     incoming.release(new Continuation<Void>() {
@@ -151,11 +153,11 @@ public class UserSession implements Closeable {
 
   @Override
   public void close() throws IOException {
-    for (final String remoteParticipantUserId : incomingMedia.keySet()) {
+    for (final String remoteParticipantUserId : incomingMediaByUserId.keySet()) {
 
       log.trace("PARTICIPANT {} / {}: Released incoming EP for {}", this.userName, this.userId, remoteParticipantUserId);
 
-      final WebRtcEndpoint ep = this.incomingMedia.get(remoteParticipantUserId);
+      final WebRtcEndpoint ep = this.incomingMediaByUserId.get(remoteParticipantUserId);
 
       ep.release(new Continuation<Void>() {
 
@@ -207,6 +209,7 @@ public class UserSession implements Closeable {
     messageToSend.addProperty("receiverId", userId);
     messageToSend.addProperty("receiverName", userName);
     messageToSend.addProperty("message", message);
+    messageToSend.addProperty("isSendToAll", false);
 
     synchronized (sender.session) {
       sender.session.sendMessage(new TextMessage(messageToSend.toString()));
@@ -214,6 +217,43 @@ public class UserSession implements Closeable {
 
     synchronized (session) {
       session.sendMessage(new TextMessage(messageToSend.toString()));
+    }
+  }
+
+  static public void sendMessageToAll(UserSession sender, List<UserSession> recieverList, String message) throws IOException {
+    JsonObject messageToReceiver = new JsonObject();
+    List<Participant> receivedMembers = new ArrayList<Participant>();
+
+    for (UserSession reciever : recieverList) {
+      if (reciever.getUserId().equals(sender.userId)) {continue;}
+      log.debug("USER {} / {}: Sending message {} to USER {} / {}", sender.userName, sender.userId, message, reciever.getUserName(), reciever.getUserId());
+
+      messageToReceiver.addProperty("action", "sendChat");
+      messageToReceiver.addProperty("senderId", sender.userId);
+      messageToReceiver.addProperty("senderName", sender.userName);
+      messageToReceiver.addProperty("receiverId", reciever.getUserId());
+      messageToReceiver.addProperty("receiverName", reciever.getUserName());
+      messageToReceiver.addProperty("message", message);
+      messageToReceiver.addProperty("isSendToAll", true);
+
+      Participant participant = new Participant(reciever.getUserId(), reciever.getUserName());
+      receivedMembers.add(participant);
+
+      synchronized (reciever.getSession()) {
+        reciever.getSession().sendMessage(new TextMessage(messageToReceiver.toString()));
+      }
+    }
+
+    JsonObject messageToSender = new JsonObject();
+    messageToSender.addProperty("action", "sendChat");
+    messageToSender.addProperty("senderId", sender.userId);
+    messageToSender.addProperty("senderName", sender.userName);
+    messageToSender.addProperty("message", message);
+    messageToSender.addProperty("isSendToAll", true);
+    messageToSender.addProperty("receiver", receivedMembers.toString());
+
+    synchronized (sender.session) {
+      sender.session.sendMessage(new TextMessage(messageToSender.toString()));
     }
   }
 
@@ -243,7 +283,7 @@ public class UserSession implements Closeable {
     if (this.userId.compareTo(userId) == 0) {
       outgoingMedia.addIceCandidate(candidate);
     } else {
-      WebRtcEndpoint webRtc = incomingMedia.get(userId);
+      WebRtcEndpoint webRtc = incomingMediaByUserId.get(userId);
       if (webRtc != null) {
         webRtc.addIceCandidate(candidate);
       }
