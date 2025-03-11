@@ -43,7 +43,7 @@ public class CallHandler extends TextWebSocketHandler {
     if (user != null) {
       log.debug("Incoming message from user '{}': {}", user.getUserName(), receivedMessage);
     } else {
-      log.info("Incoming message from new user: {}", receivedMessage);
+      log.debug("Incoming message from new user: {}", receivedMessage);
     }
 
     switch (receivedMessage.get("eventId").getAsString()) {
@@ -106,9 +106,14 @@ public class CallHandler extends TextWebSocketHandler {
   public void afterConnectionClosed(WebSocketSession session, CloseStatus status) throws Exception {
     UserSession user = registry.removeBySession(session);
     if (user == null) {
-      throw new IllegalArgumentException("방 생성이 제대로 되지 않았습니다.");
+      return;
     }
-    roomManager.getRoom(user.getRoomId()).leave(user);
+
+    log.info("User {} / {} WebSocket didn't close well", user.getUserName(), user.getUserId());
+    Room room = roomManager.getRoom(user.getRoomId());
+    if (room != null) {
+      room.leave(user);
+    }
   }
 
   private void joinRoom(JsonObject params, WebSocketSession session) throws IOException {
@@ -139,6 +144,7 @@ public class CallHandler extends TextWebSocketHandler {
     if (room.getParticipants().isEmpty()) {
       roomManager.removeRoom(room);
     }
+    registry.removeBySession(user.getSession());
   }
 
   private void sendChat(String messageSenderId, String messageReceiverId, String chatMessage) throws IOException {
