@@ -18,6 +18,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.ThreadLocalRandom;
 
 public class Room implements Closeable {
   private final Logger log = LoggerFactory.getLogger(Room.class);
@@ -127,8 +128,8 @@ public class Room implements Closeable {
     user.sendMessage(existingParticipantsMsg);
   }
 
-  // 방장이 나갔을 경우 방에 있는 새로운 유저에게 방장 할당 수정
   private void removeParticipant(String userId) throws IOException {
+    System.out.println("romove Participant UserId : " + userId);
     String userName = participants.get(userId).getUserName();
     participants.remove(userId);
 
@@ -139,6 +140,7 @@ public class Room implements Closeable {
     participantLeftJson.addProperty("action", "exitRoom");
     participantLeftJson.addProperty("userId", userId);
     participantLeftJson.addProperty("userName", userName);
+
     for (final UserSession participant : participants.values()) {
       try {
         participant.cancelVideoFrom(userId);
@@ -150,7 +152,33 @@ public class Room implements Closeable {
 
     if (!unnotifiedParticipants.isEmpty()) {
       log.debug("ROOM {}: The users {} could not be notified that {} / {} left the room", this.roomId,
-          unnotifiedParticipants, userName, userId);
+              unnotifiedParticipants, userName, userId);
+    }
+    unnotifiedParticipants.clear();
+
+    if (userId.equals(this.roomCreator.getUserId()) && !participants.isEmpty()) {
+      List<String> participantsKeys = new ArrayList<>(participants.keySet());
+      String randomKey = participantsKeys.get(ThreadLocalRandom.current().nextInt(participantsKeys.size()));
+      UserSession newRoomLeader = participants.get(randomKey);
+      Participant roomLeader = new Participant(newRoomLeader.getUserId(), newRoomLeader.getUserName());
+      this.roomCreator = roomLeader;
+
+      JsonObject roomLeaderChangeMessage = new JsonObject();
+      roomLeaderChangeMessage.addProperty("action", "creatorChanged");
+      roomLeaderChangeMessage.addProperty("creator", this.roomCreator.toString());
+
+      for (final UserSession participant : participants.values()) {
+        try {
+          participant.sendMessage(roomLeaderChangeMessage);
+        } catch (final IOException e) {
+          unnotifiedParticipants.add(participant.getUserId());
+        }
+      }
+
+      if (!unnotifiedParticipants.isEmpty()) {
+        log.debug("ROOM {}: The users {} could not be notified that {} / {} left the room", this.roomId,
+                unnotifiedParticipants, userName, userId);
+      }
     }
 
   }
