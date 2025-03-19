@@ -3,7 +3,6 @@ package org.improvejava.kurento_chat;
 import org.springframework.stereotype.Component;
 import org.springframework.web.socket.WebSocketSession;
 
-import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Logger;
 
@@ -25,12 +24,6 @@ public class UserRegistry {
 
   public UserSession getBySession(WebSocketSession session) {
     return userSessionBySessionId.get(session.getId());
-  }
-
-  public List<UserSession> getUserSessionsBy(String roomId) {
-    return userSessionByUserId.values().stream()
-            .filter(userSession -> userSession.getRoomId().equals(roomId))
-            .toList();
   }
 
   public boolean exists(String userId) {
