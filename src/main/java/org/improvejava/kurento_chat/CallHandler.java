@@ -15,8 +15,21 @@ import org.springframework.web.socket.handler.TextWebSocketHandler;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.UUID;
 
+/**
+ * This class is a handler used for WebSocket connections.
+ * It is responsible for managing WebSocket communication and processing messages.
+ *
+ * <p>
+ * {@code CallHandler} handles incoming WebSocket messages, performs any necessary processing,
+ * and responds back to the client through WebSocket.
+ * </p><br>
+ *
+ * <p><b>한국어:</b>
+ * 이 클래스는 웹 소켓 연결 시 사용하는 핸들러입니다. 웹 소켓 연결과 메시지 처리를 관리합니다.</p>
+ *
+ * <p>{@code CallHandler}는 수신한 웹소켓 메시지를 처리한 후, 클라이언트에게 응답을 보냅니다.</p>
+ */
 @Component
 public class CallHandler extends TextWebSocketHandler {
 
@@ -28,12 +41,40 @@ public class CallHandler extends TextWebSocketHandler {
 
   private final UserRegistry registry;
 
+  private final MessageParser messageParser;
+
+  /**
+   * Creates a new {@code CallHandler} instance with the specified {@code roomManager} and {@code userRegistry}.
+   *
+   * <p><b>한국어:</b>
+   * {@code roomManager}와 {@code userRegistry}를 이용하여 새로운 {@code CallHandler} 객체를 생성합니다. </p><br>
+   *
+   * @param roomManager The object responsible for managing rooms.
+   * @param userRegistry The object that handles user registration and management.
+   * @param messageParser
+   */
   @Autowired
-  public CallHandler(RoomManager roomManager, UserRegistry registry) {
+  public CallHandler(RoomManager roomManager, UserRegistry userRegistry, MessageParser messageParser) {
     this.roomManager = roomManager;
-    this.registry = registry;
+    this.registry = userRegistry;
+    this.messageParser = messageParser;
   }
 
+  /**
+   * 웹 소켓 메시지를 받아서 해당 {@code eventId}에 따라 주어진 동작을 하고 메시지를 응답함
+   * @param session 웹 소켓 연결 세션
+   * @param message 웹 소켓으로 받은 요청 메시지
+   * @throws Exception 에러 처리가 되지 않은 에러 던짐?
+   *
+   * 하는 일
+   * - 메시지 받기
+   * - 사용자가 처음 왔는지 아닌지 확인 후 디버그 메시지로 받은거 출력
+   * - 각 메시지 아이디에 해당하는 동작하게 함 + 여기서 메시지 파싱해서 파리미터 전달까지
+   *
+   * 추후 구현?
+   * 처음 온 사용자 & 아닌 사용자 구분해서 처리할 수 있게 뭔가 해야 할 듯 여기서 에러처리 필요하지 않을까?
+   */
+  // 처음 온 사용자 & 아닌 사용자 구분해서 처리할 수 있게 뭔가 해야 할 듯 여기서 에러처리 필요하지 않을까?
   @Override
   public void handleTextMessage(WebSocketSession session, TextMessage message) throws Exception {
     final JsonObject receivedMessage = gson.fromJson(message.getPayload(), JsonObject.class);
@@ -73,28 +114,22 @@ public class CallHandler extends TextWebSocketHandler {
         break;
 
       case "exitRoom":
-          if (user != null) {
-            exitRoom(user);
-          }
+        if (user != null) {
+          exitRoom(user);
+        }
         break;
 
       case "sendChat":
-        final String messageSenderId = receivedMessage.get("senderId").getAsString();
-        final String messageReceiverId = receivedMessage.get("receiverId").getAsString() == null ? "toAll" : receivedMessage.get("receiverId").getAsString();
-        final String chatMessage = receivedMessage.get("message").getAsString();
         final boolean isSendToAll = receivedMessage.get("isSendToAll").getAsBoolean();
         if (isSendToAll) {
-          sendChatToAll(messageSenderId, chatMessage);
+          sendChatToAll(receivedMessage);
         } else {
-          sendChat(messageSenderId, messageReceiverId, chatMessage);
+          sendChat(receivedMessage);
         }
         break;
 
       case "sendEmoji":
-        final String emojiSenderId = receivedMessage.get("senderId").getAsString();
-        final String emojiReceiverId = receivedMessage.get("receiverId").getAsString();
-        final String selectedEmoji = receivedMessage.get("emoji").getAsString();
-        sendEmoji(emojiSenderId, emojiReceiverId, selectedEmoji);
+        sendEmoji(receivedMessage);
         break;
 
       default:
@@ -102,70 +137,77 @@ public class CallHandler extends TextWebSocketHandler {
     }
   }
 
+  /**
+   * 커넥션이 끊길 경우 수행하는 함수
+   *
+   * 하는 일
+   * - 해당 메서드를 동작하는 이유 / 즉 연결 끊긴 원인 출력
+   * - userSession이 제대로 닫히지 않았다면.. 아마 이거 맞을껄??? registry에 해당 요소가 저장되어 있어서 아직
+   *     userSession 사용처가 있어서 gc가 날리지 않았다면 날리게 함
+   * - roomManager에서 user가 아직 남아있다면 해당 user를 룸에서 떠나게 함 & userSession 객체 close
+   */
   @Override
   public void afterConnectionClosed(WebSocketSession session, CloseStatus status) throws Exception {
-    UserSession user = registry.removeBySession(session);
-    if (user == null) {
+    log.info(String.valueOf(status));
+    UserSession userSession = registry.removeBySession(session);
+    if (userSession == null) {
       return;
     }
 
-    log.info("User {} / {} WebSocket didn't close well", user.getUserName(), user.getUserId());
-    Room room = roomManager.getRoom(user.getRoomId());
-    if (room != null) {
-      room.leave(user);
-    }
+    log.info("User {} / {} WebSocket didn't close well", userSession.getUserName(), userSession.getUserId());
+    roomManager.leave(userSession);
   }
 
-  private void joinRoom(JsonObject params, WebSocketSession session) throws IOException {
-    final String roomId = params.get("roomId").getAsString();
-    final String userName = params.get("userName").getAsString();
-    final String userId = UUID.randomUUID().toString();
-    log.info("PARTICIPANT {} / {} : trying to join room {}", userName, userId, roomId);
+  /** 방 참가
+   */
+  private void joinRoom(JsonObject receivedMessage, WebSocketSession session) throws IOException {
+    JoinRoomDTO joinRoomDTO = messageParser.parseForJoinRoom(receivedMessage);
 
-    Room room = roomManager.getRoom(roomId);
-    final UserSession user = room.joinRoom(userName, userId, session);
+    log.info("PARTICIPANT {} / {} : trying to join room {}", joinRoomDTO.getUserName(), joinRoomDTO.getUserId(), joinRoomDTO.getRoomId());
+
+    final UserSession user  = roomManager.joinRoom(joinRoomDTO.getUserName(), joinRoomDTO.getUserId(), joinRoomDTO.getRoomId(), session);
+
     registry.register(user);
   }
 
-  private void createRoom(JsonObject params, WebSocketSession session) throws IOException {
-    final String userName = params.get("userName").getAsString();
-    final String userId = UUID.randomUUID().toString();
-    log.info("PARTICIPANT {} / {} : trying to make room", userName, userId);
+  private void createRoom(JsonObject receivedMessage, WebSocketSession session) throws IOException {
+    CreateRoomDTO createRoomDTO = messageParser.parseForCreateRoom(receivedMessage);
 
-    Room room = roomManager.createRoom();
-    Participant participant = new Participant(userId, userName);
-    final UserSession user = room.createRoom(userName, userId, session, participant);
+    log.info("PARTICIPANT {} / {} : trying to make room", createRoomDTO.getUserName(), createRoomDTO.getUserId());
+
+    // 추후 프론트와 협의 후 삭제
+    Participant participant = new Participant(createRoomDTO.getUserId(), createRoomDTO.getUserName());
+    final UserSession user = roomManager.createRoom(createRoomDTO.getUserName(), createRoomDTO.getUserId(), session, participant);
     registry.register(user);
   }
 
   private void exitRoom(UserSession user) throws IOException {
-    final Room room = roomManager.getRoom(user.getRoomId());
-    room.leave(user);
-    if (room.getParticipants().isEmpty()) {
-      roomManager.removeRoom(room);
-    }
+    roomManager.leave(user);
     registry.removeBySession(user.getSession());
   }
 
-  private void sendChat(String messageSenderId, String messageReceiverId, String chatMessage) throws IOException {
-    UserSession messageSender = registry.getByUserId(messageSenderId);
-    UserSession messageReceiver = registry.getByUserId(messageReceiverId);
+  private void sendChat(JsonObject receivedMessage) throws IOException {
+    SendChatDTO sendChatDTO = messageParser.parseForSendChat(receivedMessage);
+    UserSession messageSender = registry.getByUserId(sendChatDTO.getSenderId());
+    UserSession messageReceiver = registry.getByUserId(sendChatDTO.getReceiverId());
 
-    messageReceiver.sendMessage(messageSender, chatMessage);
+    messageReceiver.sendMessage(messageSender, sendChatDTO.getMessage());
   }
 
-  private void sendChatToAll(String messageSenderId, String chatMessage) throws IOException {
-    UserSession messageSender = registry.getByUserId(messageSenderId);
+  private void sendChatToAll(JsonObject receivedMessage) throws IOException {
+    SendChatDTO sendChatDTO = messageParser.parseForSendChat(receivedMessage);
+    UserSession messageSender = registry.getByUserId(sendChatDTO.getSenderId());
     String roomId = messageSender.getRoomId();
 
-    List<UserSession> receiverList = registry.getUserSessionsBy(roomId);
-    UserSession.sendMessageToAll(messageSender, receiverList, chatMessage);
+    List<UserSession> receiverList = roomManager.getRoom(roomId).getParticipants().stream().toList();
+    UserSession.sendMessageToAll(messageSender, receiverList, sendChatDTO.getMessage());
   }
 
-  private void sendEmoji(String emojiSenderId, String emojiReceiverId, String selectedEmoji) throws IOException {
-    UserSession emojiSender = registry.getByUserId(emojiSenderId);
-    UserSession emojiReceiver = registry.getByUserId(emojiReceiverId);
+  private void sendEmoji(JsonObject receivedMessage) throws IOException {
+    SendEmojiDTO sendEmojiDTO = messageParser.parseForSendEmoji(receivedMessage);
 
-    emojiReceiver.sendEmoji(emojiSender, selectedEmoji);
+    UserSession emojiReceiver = registry.getByUserId(sendEmojiDTO.getReceiverId());
+    UserSession emojiSender = registry.getByUserId(sendEmojiDTO.getSenderId());
+    emojiReceiver.sendEmoji(emojiSender, sendEmojiDTO.getEmoji());
   }
 }
