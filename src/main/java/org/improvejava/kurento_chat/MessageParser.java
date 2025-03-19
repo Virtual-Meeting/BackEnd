@@ -5,11 +5,8 @@ import org.springframework.stereotype.Component;
 
 @Component
 public class MessageParser {
-    private JsonObject receivedMessage;
 
-    public MessageParser(JsonObject receivedMessage) {
-        this.receivedMessage = receivedMessage;
-    }
+    public MessageParser() {}
 
     /**
      * 받은 메시지를 방에 참가할 수 있게 파싱
