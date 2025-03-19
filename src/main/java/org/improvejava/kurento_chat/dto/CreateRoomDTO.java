@@ -13,7 +13,7 @@ public class CreateRoomDTO {
 
     private final String roomId;
 
-    CreateRoomDTO(String userName) {
+    public CreateRoomDTO(String userName) {
         this.userId = UUID.randomUUID().toString();
         this.userName = userName;
         this.roomId = RoomIdGenerator.generateRoomId();
