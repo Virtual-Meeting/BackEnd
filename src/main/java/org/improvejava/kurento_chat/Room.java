@@ -1,14 +1,10 @@
 package org.improvejava.kurento_chat;
 
-import com.google.gson.JsonArray;
-import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
-import com.google.gson.JsonPrimitive;
 import org.kurento.client.Continuation;
 import org.kurento.client.MediaPipeline;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.web.socket.WebSocketSession;
 
 import javax.annotation.PreDestroy;
 import java.io.Closeable;
@@ -31,164 +27,46 @@ public class Room implements Closeable {
   public Room(String roomId, MediaPipeline pipeline) {
     this.roomId = roomId;
     this.pipeline = pipeline;
-    log.info("ROOM {} has been created", roomId);
+    log.info("ROOM {} has been created", this.roomId);
   }
 
   public String getRoomId() {
     return roomId;
   }
 
-  @PreDestroy
-  private void shutdown() {
-    this.close();
-  }
-
-  public UserSession joinRoom(String userName, String userId, WebSocketSession session) throws IOException {
-    log.info("ROOM {}: adding participant {} / {}", this.roomId, userName, userId);
-    final UserSession participant = new UserSession(userName, this.roomId, userId, session, this.pipeline);
-    addNewUserParticipantsList(participant);
-    participants.put(participant.getUserId(), participant);
-    sendParticipantNames(participant);
-    return participant;
-  }
-
-  public UserSession createRoom(String userName, String userId, WebSocketSession session, Participant roomCreator) throws IOException {
-    log.info("Participant {} / {} created room {}", userName, userId, this.roomId);
-    final UserSession participant = new UserSession(userName, this.roomId, userId, session, this.pipeline);
-    addNewUserParticipantsList(participant);
-    participants.put(participant.getUserId(), participant);
-    this.roomCreator = roomCreator;
-
-    JsonObject createRoomMsg = new JsonObject();
-    createRoomMsg.addProperty("action", "roomCreated");
-    createRoomMsg.addProperty("userId", participant.getUserId());
-    createRoomMsg.addProperty("userName", participant.getUserName());
-    createRoomMsg.addProperty("roomId", this.roomId);
-    createRoomMsg.addProperty("creator", roomCreator.toString());
-
-    participant.sendMessage(createRoomMsg);
-    return participant;
-  }
-
-  public void leave(UserSession user) throws IOException {
-    log.debug("PARTICIPANT {} / {}: Leaving room {}", user.getUserName(), user.getUserId(), this.roomId);
-    this.removeParticipant(user.getUserId());
-    user.close();
-  }
-
-  // 기존의 사용자에게 새 사용자의 방 합류 알림
-  private Collection<String> addNewUserParticipantsList(UserSession newParticipant) throws IOException {
-    final JsonObject newParticipantMsg = new JsonObject();
-    newParticipantMsg.addProperty("action", "sendExistingUsers");
-    newParticipantMsg.addProperty("userId", newParticipant.getUserId());
-    newParticipantMsg.addProperty("userName", newParticipant.getUserName());
-
-    final List<String> participantsList = new ArrayList<>(participants.values().size());
-    log.debug("ROOM {}: notifying other participants of new participant {} / {}", roomId,
-        newParticipant.getUserName(), newParticipant.getUserId());
-
-    for (final UserSession participant : participants.values()) {
-      try {
-        participant.sendMessage(newParticipantMsg);
-      } catch (final IOException e) {
-        log.debug("ROOM {}: participant {} / {} could not be notified", roomId, participant.getUserName(), participant.getUserId(), e);
-      }
-      participantsList.add(participant.getUserId());
-    }
-
-    return participantsList;
-  }
-
-  // 방에 새로 참가하고자 하는 사용자에게 기존의 참가자 리스트 전송
-  public void sendParticipantNames(UserSession user) throws IOException {
-    final JsonArray participantsArray = new JsonArray();
-
-    for (final UserSession participant : this.getParticipants()) {
-      if (!participant.equals(user)) {
-        final Participant participantDTO = new Participant();
-        participantDTO.setUserId(participant.getUserId());
-        participantDTO.setUserName(participant.getUserName());
-
-        final JsonElement jsonParticipant = new JsonPrimitive(participantDTO.toString());
-
-        participantsArray.add(jsonParticipant);
-      }
-    }
-
-    final JsonObject existingParticipantsMsg = new JsonObject();
-    existingParticipantsMsg.addProperty("action", "newUserJoined");
-    existingParticipantsMsg.addProperty("userId", user.getUserId());
-    existingParticipantsMsg.addProperty("userName", user.getUserName());
-    existingParticipantsMsg.add("participants", participantsArray);
-    existingParticipantsMsg.addProperty("creator", this.roomCreator.toString());
-
-    log.debug("PARTICIPANT {} / {} : sending a list of {} participants", user.getUserName(), user.getUserId(),
-            participantsArray.size());
-
-    user.sendMessage(existingParticipantsMsg);
-  }
-
-  private void removeParticipant(String userId) throws IOException {
-    System.out.println("romove Participant UserId : " + userId);
-    String userName = participants.get(userId).getUserName();
-    participants.remove(userId);
-
-    log.debug("ROOM {}: notifying all users that {} / {} is leaving the room", this.roomId, userName, userId);
-
-    final List<String> unnotifiedParticipants = new ArrayList<>();
-    final JsonObject participantLeftJson = new JsonObject();
-    participantLeftJson.addProperty("action", "exitRoom");
-    participantLeftJson.addProperty("userId", userId);
-    participantLeftJson.addProperty("userName", userName);
-
-    for (final UserSession participant : participants.values()) {
-      try {
-        participant.cancelVideoFrom(userId);
-        participant.sendMessage(participantLeftJson);
-      } catch (final IOException e) {
-        unnotifiedParticipants.add(participant.getUserId());
-      }
-    }
-
-    if (!unnotifiedParticipants.isEmpty()) {
-      log.debug("ROOM {}: The users {} could not be notified that {} / {} left the room", this.roomId,
-              unnotifiedParticipants, userName, userId);
-    }
-    unnotifiedParticipants.clear();
-
-    if (userId.equals(this.roomCreator.getUserId()) && !participants.isEmpty()) {
-      List<String> participantsKeys = new ArrayList<>(participants.keySet());
-      String randomKey = participantsKeys.get(ThreadLocalRandom.current().nextInt(participantsKeys.size()));
-      UserSession newRoomLeader = participants.get(randomKey);
-      Participant roomLeader = new Participant(newRoomLeader.getUserId(), newRoomLeader.getUserName());
-      this.roomCreator = roomLeader;
-
-      JsonObject roomLeaderChangeMessage = new JsonObject();
-      roomLeaderChangeMessage.addProperty("action", "creatorChanged");
-      roomLeaderChangeMessage.addProperty("creator", this.roomCreator.toString());
-
-      for (final UserSession participant : participants.values()) {
-        try {
-          participant.sendMessage(roomLeaderChangeMessage);
-        } catch (final IOException e) {
-          unnotifiedParticipants.add(participant.getUserId());
-        }
-      }
-
-      if (!unnotifiedParticipants.isEmpty()) {
-        log.debug("ROOM {}: The users {} could not be notified that {} / {} left the room", this.roomId,
-                unnotifiedParticipants, userName, userId);
-      }
-    }
-
+  public MediaPipeline getPipeline() {
+    return pipeline;
   }
 
   public Collection<UserSession> getParticipants() {
     return participants.values();
   }
 
-  public UserSession getParticipant(String userId) {
-    return participants.get(userId);
+  public UserSession getRandomParticipant() {
+    List<String> participantKeys = new ArrayList<>(participants.keySet());
+    String keyForRandomParticipant = participantKeys.get(ThreadLocalRandom.current().nextInt(participants.size()));
+    return participants.get(keyForRandomParticipant);
+  }
+
+  public Participant getRoomCreator() {
+    return roomCreator;
+  }
+
+  public void addParticipant(UserSession participant) {
+    participants.put(participant.getUserId(), participant);
+  }
+
+  public void removeParticipant(String userId) {
+    participants.remove(userId);
+  }
+
+  public void changeRoomCreator(Participant newCreator) {
+    roomCreator = newCreator;
+  }
+
+  @PreDestroy
+  private void shutdown() {
+    this.close();
   }
 
   @Override
@@ -201,7 +79,7 @@ public class Room implements Closeable {
         user.sendMessage(participantLeftJson);
       } catch (IOException e) {
         log.debug("ROOM {}: Could not invoke close on participant {} / {}", this.roomId, user.getUserName(), user.getUserId(),
-            e);
+                e);
       }
     }
 
