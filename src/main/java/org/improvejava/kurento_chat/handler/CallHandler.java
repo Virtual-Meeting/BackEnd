@@ -1,8 +1,17 @@
-package org.improvejava.kurento_chat;
+package org.improvejava.kurento_chat.handler;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonObject;
+import org.improvejava.kurento_chat.parsing.MessageParser;
+import org.improvejava.kurento_chat.dto.SendChatDTO;
+import org.improvejava.kurento_chat.dto.SendEmojiDTO;
+import org.improvejava.kurento_chat.dto.CreateRoomDTO;
+import org.improvejava.kurento_chat.dto.JoinRoomDTO;
+import org.improvejava.kurento_chat.room.RoomManager;
+import org.improvejava.kurento_chat.user.Participant;
+import org.improvejava.kurento_chat.user.UserRegistry;
+import org.improvejava.kurento_chat.user.UserSession;
 import org.kurento.client.IceCandidate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

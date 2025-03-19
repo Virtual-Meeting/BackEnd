@@ -1,4 +1,4 @@
-package org.improvejava.kurento_chat;
+package org.improvejava.kurento_chat.user;
 
 import org.springframework.stereotype.Component;
 import org.springframework.web.socket.WebSocketSession;

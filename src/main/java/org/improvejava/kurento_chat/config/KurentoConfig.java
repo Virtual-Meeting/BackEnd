@@ -1,4 +1,4 @@
-package org.improvejava.kurento_chat;
+package org.improvejava.kurento_chat.config;
 
 import org.kurento.client.KurentoClient;
 import org.springframework.context.annotation.Bean;

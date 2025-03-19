@@ -1,9 +1,12 @@
-package org.improvejava.kurento_chat;
+package org.improvejava.kurento_chat.room;
 
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonPrimitive;
+import org.improvejava.kurento_chat.user.Participant;
+import org.improvejava.kurento_chat.user.UserSession;
+import org.improvejava.kurento_chat.utils.RoomIdGenerator;
 import org.kurento.client.KurentoClient;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

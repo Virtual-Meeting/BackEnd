@@ -1,4 +1,4 @@
-package org.improvejava.kurento_chat;
+package org.improvejava.kurento_chat.user;
 
 import lombok.Getter;
 import lombok.Setter;

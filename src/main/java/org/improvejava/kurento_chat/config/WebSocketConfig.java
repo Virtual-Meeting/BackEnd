@@ -1,5 +1,6 @@
-package org.improvejava.kurento_chat;
+package org.improvejava.kurento_chat.config;
 
+import org.improvejava.kurento_chat.handler.CallHandler;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.socket.config.annotation.EnableWebSocket;

@@ -1,6 +1,8 @@
-package org.improvejava.kurento_chat;
+package org.improvejava.kurento_chat.room;
 
 import com.google.gson.JsonObject;
+import org.improvejava.kurento_chat.user.Participant;
+import org.improvejava.kurento_chat.user.UserSession;
 import org.kurento.client.Continuation;
 import org.kurento.client.MediaPipeline;
 import org.slf4j.Logger;

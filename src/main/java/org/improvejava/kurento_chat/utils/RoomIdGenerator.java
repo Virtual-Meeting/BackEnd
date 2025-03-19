@@ -1,4 +1,4 @@
-package org.improvejava.kurento_chat;
+package org.improvejava.kurento_chat.utils;
 
 import org.springframework.stereotype.Component;
 
