@@ -1,4 +1,4 @@
-package org.improvejava.kurento_chat;
+package org.improvejava.kurento_chat.dto;
 
 import lombok.Getter;
 

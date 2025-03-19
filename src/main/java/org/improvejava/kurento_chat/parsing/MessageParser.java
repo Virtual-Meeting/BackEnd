@@ -1,6 +1,10 @@
-package org.improvejava.kurento_chat;
+package org.improvejava.kurento_chat.parsing;
 
 import com.google.gson.JsonObject;
+import org.improvejava.kurento_chat.dto.SendChatDTO;
+import org.improvejava.kurento_chat.dto.SendEmojiDTO;
+import org.improvejava.kurento_chat.dto.CreateRoomDTO;
+import org.improvejava.kurento_chat.dto.JoinRoomDTO;
 import org.springframework.stereotype.Component;
 
 @Component
