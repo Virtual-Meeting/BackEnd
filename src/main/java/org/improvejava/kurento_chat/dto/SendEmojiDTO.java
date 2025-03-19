@@ -10,7 +10,7 @@ public class SendEmojiDTO {
 
     private final String emoji;
 
-    SendEmojiDTO(String senderId, String receiverId, String emoji) {
+    public SendEmojiDTO(String senderId, String receiverId, String emoji) {
         this.senderId = senderId;
         this.receiverId = receiverId;
         this.emoji = emoji;

@@ -12,7 +12,7 @@ public class JoinRoomDTO {
 
     private final String roomId;
 
-    JoinRoomDTO(String userName, String roomId) {
+    public JoinRoomDTO(String userName, String roomId) {
         this.userId = UUID.randomUUID().toString();
         this.userName = userName;
         this.roomId = roomId;
