@@ -129,8 +129,8 @@ public class CallHandler extends TextWebSocketHandler {
         break;
 
       case "sendChat":
-        final boolean isSendToAll = receivedMessage.get("isSendToAll").getAsBoolean();
-        if (isSendToAll) {
+        final boolean isSendChatToAll = receivedMessage.get("isSendToAll").getAsBoolean();
+        if (isSendChatToAll) {
           sendChatToAll(receivedMessage);
         } else {
           sendChat(receivedMessage);
@@ -138,7 +138,12 @@ public class CallHandler extends TextWebSocketHandler {
         break;
 
       case "sendEmoji":
-        sendEmoji(receivedMessage);
+        final boolean isSendEmojiToAll = receivedMessage.get("isSendToAll").getAsBoolean();
+        if (isSendEmojiToAll) {
+          sendEmojiToAll(receivedMessage);
+        } else {
+          sendEmoji(receivedMessage);
+        }
         break;
 
       default:
@@ -218,5 +223,14 @@ public class CallHandler extends TextWebSocketHandler {
     UserSession emojiReceiver = registry.getByUserId(sendEmojiDTO.getReceiverId());
     UserSession emojiSender = registry.getByUserId(sendEmojiDTO.getSenderId());
     emojiReceiver.sendEmoji(emojiSender, sendEmojiDTO.getEmoji());
+  }
+
+  private void sendEmojiToAll(JsonObject receivedMessage) throws IOException {
+    SendEmojiDTO sendEmojiDTO = messageParser.parseForSendEmoji(receivedMessage);
+    UserSession emojiSender = registry.getByUserId(sendEmojiDTO.getSenderId());
+    String roomId = emojiSender.getRoomId();
+
+    List<UserSession> receiverList = roomManager.getRoom(roomId).getParticipants().stream().toList();
+    UserSession.sendMessageToAll(emojiSender, receiverList, sendEmojiDTO.getEmoji());
   }
 }

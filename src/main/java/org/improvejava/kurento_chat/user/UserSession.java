@@ -269,6 +269,7 @@ public class UserSession implements Closeable {
     emojiToSend.addProperty("receiverId", userId);
     emojiToSend.addProperty("receiverName", userName);
     emojiToSend.addProperty("emoji", selectedEmoji);
+    emojiToSend.addProperty("isSendToAll", false);
 
     synchronized (sender.session) {
       sender.session.sendMessage(new TextMessage(emojiToSend.toString()));
@@ -276,6 +277,44 @@ public class UserSession implements Closeable {
 
     synchronized (session) {
       session.sendMessage(new TextMessage(emojiToSend.toString()));
+    }
+  }
+
+  // 같은 방에 있는 사용자끼리만 보낼 수 있게 설정 추가 필요
+  public void sendEmojiToAll(UserSession sender, List<UserSession> recieverList, String selectedEmoji) throws IOException {
+    JsonObject emojiToSend = new JsonObject();
+    List<Participant> receivedMembers = new ArrayList<Participant>();
+
+    for (UserSession reciever : recieverList) {
+      if (reciever.getUserId().equals(sender.userId)) {continue;}
+      log.debug("USER {} / {}: Sending message {} to USER {} / {}", sender.userName, sender.userId, selectedEmoji, reciever.getUserName(), reciever.getUserId());
+
+      emojiToSend.addProperty("action", "sendEmoji");
+      emojiToSend.addProperty("senderId", sender.userId);
+      emojiToSend.addProperty("senderName", sender.userName);
+      emojiToSend.addProperty("receiverId", reciever.getUserId());
+      emojiToSend.addProperty("receiverName", reciever.getUserName());
+      emojiToSend.addProperty("emoji", selectedEmoji);
+      emojiToSend.addProperty("isSendToAll", true);
+
+      Participant participant = new Participant(reciever.getUserId(), reciever.getUserName());
+      receivedMembers.add(participant);
+
+      synchronized (reciever.getSession()) {
+        reciever.getSession().sendMessage(new TextMessage(emojiToSend.toString()));
+      }
+    }
+
+    JsonObject messageToSender = new JsonObject();
+    messageToSender.addProperty("action", "sendEmoji");
+    messageToSender.addProperty("senderId", sender.userId);
+    messageToSender.addProperty("senderName", sender.userName);
+    messageToSender.addProperty("emoji", selectedEmoji);
+    messageToSender.addProperty("isSendToAll", true);
+    messageToSender.addProperty("receiver", receivedMembers.toString());
+
+    synchronized (sender.session) {
+      sender.session.sendMessage(new TextMessage(messageToSender.toString()));
     }
   }
 
