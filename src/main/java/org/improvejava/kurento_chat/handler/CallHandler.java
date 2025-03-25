@@ -231,6 +231,6 @@ public class CallHandler extends TextWebSocketHandler {
     String roomId = emojiSender.getRoomId();
 
     List<UserSession> receiverList = roomManager.getRoom(roomId).getParticipants().stream().toList();
-    UserSession.sendMessageToAll(emojiSender, receiverList, sendEmojiDTO.getEmoji());
+    UserSession.sendEmojiToAll(emojiSender, receiverList, sendEmojiDTO.getEmoji());
   }
 }
