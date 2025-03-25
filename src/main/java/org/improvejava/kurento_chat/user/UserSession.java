@@ -250,7 +250,6 @@ public class UserSession implements Closeable {
     messageToSender.addProperty("senderName", sender.userName);
     messageToSender.addProperty("message", message);
     messageToSender.addProperty("isSendToAll", true);
-    messageToSender.addProperty("receiver", receivedMembers.toString());
 
     synchronized (sender.session) {
       sender.session.sendMessage(new TextMessage(messageToSender.toString()));
@@ -281,7 +280,7 @@ public class UserSession implements Closeable {
   }
 
   // 같은 방에 있는 사용자끼리만 보낼 수 있게 설정 추가 필요
-  public void sendEmojiToAll(UserSession sender, List<UserSession> recieverList, String selectedEmoji) throws IOException {
+  static public void sendEmojiToAll(UserSession sender, List<UserSession> recieverList, String selectedEmoji) throws IOException {
     JsonObject emojiToSend = new JsonObject();
     List<Participant> receivedMembers = new ArrayList<Participant>();
 
@@ -305,16 +304,15 @@ public class UserSession implements Closeable {
       }
     }
 
-    JsonObject messageToSender = new JsonObject();
-    messageToSender.addProperty("action", "sendEmoji");
-    messageToSender.addProperty("senderId", sender.userId);
-    messageToSender.addProperty("senderName", sender.userName);
-    messageToSender.addProperty("emoji", selectedEmoji);
-    messageToSender.addProperty("isSendToAll", true);
-    messageToSender.addProperty("receiver", receivedMembers.toString());
+    JsonObject emojiToSender = new JsonObject();
+    emojiToSender.addProperty("action", "sendEmoji");
+    emojiToSender.addProperty("senderId", sender.userId);
+    emojiToSender.addProperty("senderName", sender.userName);
+    emojiToSender.addProperty("emoji", selectedEmoji);
+    emojiToSender.addProperty("isSendToAll", true);
 
     synchronized (sender.session) {
-      sender.session.sendMessage(new TextMessage(messageToSender.toString()));
+      sender.session.sendMessage(new TextMessage(emojiToSender.toString()));
     }
   }
 
