@@ -338,7 +338,7 @@ public class UserSession implements Closeable {
       }
     }
   }
-
+  
   public void changeName(String newName, Room room) {
     userName = newName;
 
