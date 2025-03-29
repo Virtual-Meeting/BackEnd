@@ -8,6 +8,7 @@ import org.improvejava.kurento_chat.dto.SendChatDTO;
 import org.improvejava.kurento_chat.dto.SendEmojiDTO;
 import org.improvejava.kurento_chat.dto.CreateRoomDTO;
 import org.improvejava.kurento_chat.dto.JoinRoomDTO;
+import org.improvejava.kurento_chat.room.Room;
 import org.improvejava.kurento_chat.room.RoomManager;
 import org.improvejava.kurento_chat.user.Participant;
 import org.improvejava.kurento_chat.user.UserRegistry;
@@ -205,7 +206,7 @@ public class CallHandler extends TextWebSocketHandler {
     UserSession messageSender = registry.getByUserId(sendChatDTO.getSenderId());
     UserSession messageReceiver = registry.getByUserId(sendChatDTO.getReceiverId());
 
-    messageReceiver.sendMessage(messageSender, sendChatDTO.getMessage());
+    messageReceiver.sendChat(messageSender, sendChatDTO.getMessage());
   }
 
   private void sendChatToAll(JsonObject receivedMessage) throws IOException {
@@ -214,7 +215,7 @@ public class CallHandler extends TextWebSocketHandler {
     String roomId = messageSender.getRoomId();
 
     List<UserSession> receiverList = roomManager.getRoom(roomId).getParticipants().stream().toList();
-    UserSession.sendMessageToAll(messageSender, receiverList, sendChatDTO.getMessage());
+    UserSession.sendChatToAll(messageSender, receiverList, sendChatDTO.getMessage());
   }
 
   private void sendEmoji(JsonObject receivedMessage) throws IOException {

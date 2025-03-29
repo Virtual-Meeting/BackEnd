@@ -21,7 +21,7 @@ public class UserSession implements Closeable {
 
   private static final Logger log = LoggerFactory.getLogger(UserSession.class);
 
-  private final String userName;
+  private String userName;
   private final String userId;
   private final WebSocketSession session;
 
@@ -89,7 +89,7 @@ public class UserSession implements Closeable {
     scParams.addProperty("sdpAnswer", ipSdpAnswer);
 
     log.trace("USER {} / {}: SdpAnswer for {} is {}", this.userName, this.userId, sender.getUserName(), ipSdpAnswer);
-    this.sendMessage(scParams);
+    this.sendChat(scParams);
     log.debug("gather candidates");
     this.getEndpointForUser(sender).gatherCandidates();
   }
@@ -190,7 +190,7 @@ public class UserSession implements Closeable {
   }
 
   // 해당 유저 세션을 가진 사용자에게 메시지 보낼 때 이용하는 메서드
-  public void sendMessage(JsonObject message) throws IOException {
+  public void sendChat(JsonObject message) throws IOException {
     log.debug("USER {} / {}: Sending message {}", userName, userId, message);
     synchronized (session) {
       session.sendMessage(new TextMessage(message.toString()));
@@ -198,7 +198,7 @@ public class UserSession implements Closeable {
   }
 
   // 같은 방에 있는 사용자끼리만 보낼 수 있게 설정 추가 필요
-  public void sendMessage(UserSession sender, String message) throws IOException {
+  public void sendChat(UserSession sender, String message) throws IOException {
     JsonObject messageToSend = new JsonObject();
 
     log.debug("USER {} / {}: Sending message {} to USER {} / {}", sender.userName, sender.userId, message, userName, userId);
@@ -220,7 +220,7 @@ public class UserSession implements Closeable {
     }
   }
 
-  static public void sendMessageToAll(UserSession sender, List<UserSession> recieverList, String message) throws IOException {
+  static public void sendChatToAll(UserSession sender, List<UserSession> recieverList, String message) throws IOException {
     JsonObject messageToReceiver = new JsonObject();
     List<Participant> receivedMembers = new ArrayList<Participant>();
 
@@ -284,23 +284,23 @@ public class UserSession implements Closeable {
     JsonObject emojiToSend = new JsonObject();
     List<Participant> receivedMembers = new ArrayList<Participant>();
 
-    for (UserSession reciever : recieverList) {
-      if (reciever.getUserId().equals(sender.userId)) {continue;}
-      log.debug("USER {} / {}: Sending message {} to USER {} / {}", sender.userName, sender.userId, selectedEmoji, reciever.getUserName(), reciever.getUserId());
+    for (UserSession receiver : recieverList) {
+      if (receiver.getUserId().equals(sender.userId)) {continue;}
+      log.debug("USER {} / {}: Sending message {} to USER {} / {}", sender.userName, sender.userId, selectedEmoji, receiver.getUserName(), receiver.getUserId());
 
       emojiToSend.addProperty("action", "sendEmoji");
       emojiToSend.addProperty("senderId", sender.userId);
       emojiToSend.addProperty("senderName", sender.userName);
-      emojiToSend.addProperty("receiverId", reciever.getUserId());
-      emojiToSend.addProperty("receiverName", reciever.getUserName());
+      emojiToSend.addProperty("receiverId", receiver.getUserId());
+      emojiToSend.addProperty("receiverName", receiver.getUserName());
       emojiToSend.addProperty("emoji", selectedEmoji);
       emojiToSend.addProperty("isSendToAll", true);
 
-      Participant participant = new Participant(reciever.getUserId(), reciever.getUserName());
+      Participant participant = new Participant(receiver.getUserId(), receiver.getUserName());
       receivedMembers.add(participant);
 
-      synchronized (reciever.getSession()) {
-        reciever.getSession().sendMessage(new TextMessage(emojiToSend.toString()));
+      synchronized (receiver.getSession()) {
+        receiver.getSession().sendMessage(new TextMessage(emojiToSend.toString()));
       }
     }
 
@@ -313,6 +313,16 @@ public class UserSession implements Closeable {
 
     synchronized (sender.session) {
       sender.session.sendMessage(new TextMessage(emojiToSender.toString()));
+    }
+  }
+
+  public void sendParticipantsName(List<String> participantsName) throws IOException {
+    JsonObject messageToReceiver = new JsonObject();
+    messageToReceiver.addProperty("action", "sendParticipantsName");
+    messageToReceiver.addProperty("participantsName", participantsName.toString());
+
+    synchronized (this.getSession()) {
+      this.getSession().sendMessage(new TextMessage(messageToReceiver.toString()));
     }
   }
 
