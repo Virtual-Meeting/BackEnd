@@ -147,6 +147,12 @@ public class CallHandler extends TextWebSocketHandler {
         }
         break;
 
+      case "changeName":
+        String userId = receivedMessage.get("userId").getAsString();
+        String newName = receivedMessage.get("newName").getAsString();
+        changeName(userId, newName);
+        break;
+
       default:
         break;
     }
@@ -233,5 +239,11 @@ public class CallHandler extends TextWebSocketHandler {
 
     List<UserSession> receiverList = roomManager.getRoom(roomId).getParticipants().stream().toList();
     UserSession.sendEmojiToAll(emojiSender, receiverList, sendEmojiDTO.getEmoji());
+  }
+
+  private void changeName(String userId, String newName) throws IOException {
+    UserSession userSession = registry.getByUserId(userId);
+    Room room = roomManager.getRoom(userSession.getRoomId());
+    userSession.changeName(newName, room);
   }
 }

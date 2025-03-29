@@ -2,6 +2,7 @@ package org.improvejava.kurento_chat.user;
 
 import com.google.gson.JsonObject;
 import lombok.ToString;
+import org.improvejava.kurento_chat.room.Room;
 import org.kurento.client.*;
 import org.kurento.jsonrpc.JsonUtils;
 import org.slf4j.Logger;
@@ -12,6 +13,7 @@ import org.springframework.web.socket.WebSocketSession;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -335,6 +337,27 @@ public class UserSession implements Closeable {
         webRtc.addIceCandidate(candidate);
       }
     }
+  }
+
+  public void changeName(String newName, Room room) {
+    userName = newName;
+
+    JsonObject messageToReceiver = new JsonObject();
+    messageToReceiver.addProperty("action", "changeName");
+    messageToReceiver.addProperty("userId", userId);
+    messageToReceiver.addProperty("newName", newName);
+
+    Collection<UserSession> userSessionList = room.getParticipants();
+
+    userSessionList.stream().forEach(userSession -> {
+      synchronized (userSession.getSession()) {
+          try {
+              userSession.getSession().sendMessage(new TextMessage(messageToReceiver.toString()));
+          } catch (IOException e) {
+              throw new RuntimeException(e);
+          }
+      }
+    });
   }
 
   @Override
