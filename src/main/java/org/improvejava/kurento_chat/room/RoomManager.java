@@ -6,7 +6,6 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonPrimitive;
 import org.improvejava.kurento_chat.user.Participant;
 import org.improvejava.kurento_chat.user.UserSession;
-import org.improvejava.kurento_chat.utils.RoomIdGenerator;
 import org.kurento.client.KurentoClient;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -30,6 +29,29 @@ public class RoomManager {
   private KurentoClient kurento;
 
   private final ConcurrentMap<String, Room> roomsByRoomId = new ConcurrentHashMap<>();
+
+  public UserSession createRoom(String userName, String userId, WebSocketSession session, Participant roomCreator) throws IOException {
+    Room room = new Room(kurento.createMediaPipeline());
+    String roomId = room.getRoomId();
+    roomsByRoomId.put(roomId, room);
+    log.debug("Room {} is created", roomId);
+
+    log.info("Participant {} / {} created room {}", userName, userId, roomId);
+    final UserSession participant = new UserSession(userName, roomId, userId, session, room.getPipeline());
+    announceNewParticipantEnter(participant);
+    room.addParticipant(participant);
+    room.changeRoomCreator(roomCreator);
+
+    JsonObject createRoomMsg = new JsonObject();
+    createRoomMsg.addProperty("action", "roomCreated");
+    createRoomMsg.addProperty("userId", participant.getUserId());
+    createRoomMsg.addProperty("userName", participant.getUserName());
+    createRoomMsg.addProperty("roomId", roomId);
+    createRoomMsg.addProperty("creator", roomCreator.toString());
+
+    participant.sendMessage(createRoomMsg);
+    return participant;
+  }
 
   public Room getRoom(String roomId) {
     log.debug("Searching for room {}", roomId);
@@ -64,31 +86,7 @@ public class RoomManager {
     log.info("Room {} removed and closed", room.getRoomId());
   }
 
-  public UserSession createRoom(String userName, String userId, WebSocketSession session, Participant roomCreator) throws IOException {
-    String roomId = RoomIdGenerator.generateRoomId();
-    log.debug("Room {} is created", roomId);
-
-    Room room = new Room(roomId, kurento.createMediaPipeline());
-    roomsByRoomId.put(roomId, room);
-
-    log.info("Participant {} / {} created room {}", userName, userId, room.getRoomId());
-    final UserSession participant = new UserSession(userName, room.getRoomId(), userId, session, room.getPipeline());
-    announceNewParticipantEnter(participant);
-    room.addParticipant(participant);
-    room.changeRoomCreator(roomCreator);
-
-    JsonObject createRoomMsg = new JsonObject();
-    createRoomMsg.addProperty("action", "roomCreated");
-    createRoomMsg.addProperty("userId", participant.getUserId());
-    createRoomMsg.addProperty("userName", participant.getUserName());
-    createRoomMsg.addProperty("roomId", room.getRoomId());
-    createRoomMsg.addProperty("creator", roomCreator.toString());
-
-    participant.sendChat(createRoomMsg);
-    return participant;
-  }
-
-  public void leave(UserSession userSession) throws IOException {
+  public void leaveRoom(UserSession userSession) throws IOException {
     Room room = getRoom(userSession.getRoomId());
     if (room != null) {
       log.debug("PARTICIPANT {} / {}: Leaving room {}", userSession.getUserName(), userSession.getUserId(), userSession.getRoomId());
@@ -116,7 +114,7 @@ public class RoomManager {
 
     for (final UserSession participant : room.getParticipants()) {
       try {
-        participant.sendChat(newParticipantMsg);
+        participant.sendMessage(newParticipantMsg);
       } catch (final IOException e) {
         log.debug("ROOM {}: participant {} / {} could not be notified", newParticipant.getRoomId(), participant.getUserName(), participant.getUserId());
       }
@@ -149,12 +147,12 @@ public class RoomManager {
     existingParticipantsMsg.addProperty("userId", user.getUserId());
     existingParticipantsMsg.addProperty("userName", user.getUserName());
     existingParticipantsMsg.add("participants", participantsArray);
-    existingParticipantsMsg.addProperty("creator", room.getRoomCreator().toString());
+    existingParticipantsMsg.addProperty("creator", room.getRoomLeader().toString());
 
     log.debug("PARTICIPANT {} / {} : sending a list of {} participants", user.getUserName(), user.getUserId(),
             participantsArray.size());
 
-    user.sendChat(existingParticipantsMsg);
+    user.sendMessage(existingParticipantsMsg);
   }
 
   private void removeParticipant(UserSession userSession) throws IOException {
@@ -174,7 +172,7 @@ public class RoomManager {
     for (final UserSession participant : room.getParticipants()) {
       try {
         participant.cancelVideoFrom(userSession.getUserId());
-        participant.sendChat(participantLeftJson);
+        participant.sendMessage(participantLeftJson);
       } catch (final IOException e) {
         unnotifiedParticipants.add(participant.getUserId());
       }
@@ -186,18 +184,18 @@ public class RoomManager {
     }
     unnotifiedParticipants.clear();
 
-    if (userSession.getUserId().equals(room.getRoomCreator().getUserId()) && !room.getParticipants().isEmpty()) {
+    if (userSession.getUserId().equals(room.getRoomLeader().getUserId()) && !room.getParticipants().isEmpty()) {
       UserSession newRoomLeader = room.getRandomParticipant();
       Participant roomLeader = new Participant(newRoomLeader.getUserId(), newRoomLeader.getUserName());
       room.changeRoomCreator(roomLeader);
 
       JsonObject roomLeaderChangeMessage = new JsonObject();
       roomLeaderChangeMessage.addProperty("action", "creatorChanged");
-      roomLeaderChangeMessage.addProperty("creator", room.getRoomCreator().toString());
+      roomLeaderChangeMessage.addProperty("creator", room.getRoomLeader().toString());
 
       for (final UserSession participant : room.getParticipants()) {
         try {
-          participant.sendChat(roomLeaderChangeMessage);
+          participant.sendMessage(roomLeaderChangeMessage);
         } catch (final IOException e) {
           unnotifiedParticipants.add(participant.getUserId());
         }
