@@ -49,7 +49,7 @@ public class CallHandler extends TextWebSocketHandler {
 
   private final RoomManager roomManager;
 
-  private final UserRegistry registry;
+  private final UserRegistry userRegistry;
 
   private final MessageParser messageParser;
 
@@ -66,7 +66,7 @@ public class CallHandler extends TextWebSocketHandler {
   @Autowired
   public CallHandler(RoomManager roomManager, UserRegistry userRegistry, MessageParser messageParser) {
     this.roomManager = roomManager;
-    this.registry = userRegistry;
+    this.userRegistry = userRegistry;
     this.messageParser = messageParser;
   }
 
@@ -84,12 +84,11 @@ public class CallHandler extends TextWebSocketHandler {
    * 추후 구현?
    * 처음 온 사용자 & 아닌 사용자 구분해서 처리할 수 있게 뭔가 해야 할 듯 여기서 에러처리 필요하지 않을까?
    */
-  // 처음 온 사용자 & 아닌 사용자 구분해서 처리할 수 있게 뭔가 해야 할 듯 여기서 에러처리 필요하지 않을까?
   @Override
   public void handleTextMessage(WebSocketSession session, TextMessage message) throws Exception {
     final JsonObject receivedMessage = gson.fromJson(message.getPayload(), JsonObject.class);
 
-    final UserSession user = registry.getBySession(session);
+    final UserSession user = userRegistry.getBySession(session);
 
     if (user != null) {
       log.debug("Incoming message from user '{}': {}", user.getUserName(), receivedMessage);
@@ -118,7 +117,7 @@ public class CallHandler extends TextWebSocketHandler {
 
       case "receiveVideoFrom":
         final String videoSenderId = receivedMessage.get("userId").getAsString();
-        final UserSession sender = registry.getByUserId(videoSenderId);
+        final UserSession sender = userRegistry.getByUserId(videoSenderId);
         final String sdpOffer = receivedMessage.get("sdpOffer").getAsString();
         user.receiveVideoFrom(sender, sdpOffer);
         break;
@@ -153,6 +152,18 @@ public class CallHandler extends TextWebSocketHandler {
         changeName(userId, newName);
         break;
 
+      case "audioStateChange":
+        userId = receivedMessage.get("userId").getAsString();
+        Boolean turnAudioOn = Boolean.parseBoolean(receivedMessage.get("audioOn").getAsString());
+        changeAudioState(userId, turnAudioOn);
+        break;
+
+      case "videoStateChange":
+        userId = receivedMessage.get("userId").getAsString();
+        Boolean turnVideoOn = Boolean.parseBoolean(receivedMessage.get("videoOn").getAsString());
+        changeVideoState(userId, turnVideoOn);
+        break;
+
       default:
         break;
     }
@@ -170,13 +181,13 @@ public class CallHandler extends TextWebSocketHandler {
   @Override
   public void afterConnectionClosed(WebSocketSession session, CloseStatus status) throws Exception {
     log.info(String.valueOf(status));
-    UserSession userSession = registry.removeBySession(session);
+    UserSession userSession = userRegistry.removeBySession(session);
     if (userSession == null) {
       return;
     }
 
     log.info("User {} / {} WebSocket didn't close well", userSession.getUserName(), userSession.getUserId());
-    roomManager.leave(userSession);
+    roomManager.leaveRoom(userSession);
   }
 
   /** 방 참가
@@ -186,9 +197,9 @@ public class CallHandler extends TextWebSocketHandler {
 
     log.info("PARTICIPANT {} / {} : trying to join room {}", joinRoomDTO.getUserName(), joinRoomDTO.getUserId(), joinRoomDTO.getRoomId());
 
-    final UserSession user  = roomManager.joinRoom(joinRoomDTO.getUserName(), joinRoomDTO.getUserId(), joinRoomDTO.getRoomId(), session);
+    final UserSession user  = roomManager.joinRoom(joinRoomDTO.getUserName(), joinRoomDTO.getUserId(), joinRoomDTO.getRoomId(), joinRoomDTO.getIsAudioOn(), joinRoomDTO.getIsVideoOn(), session);
 
-    registry.register(user);
+    userRegistry.register(user);
   }
 
   private void createRoom(JsonObject receivedMessage, WebSocketSession session) throws IOException {
@@ -198,26 +209,27 @@ public class CallHandler extends TextWebSocketHandler {
 
     // 추후 프론트와 협의 후 삭제
     Participant participant = new Participant(createRoomDTO.getUserId(), createRoomDTO.getUserName());
-    final UserSession user = roomManager.createRoom(createRoomDTO.getUserName(), createRoomDTO.getUserId(), session, participant);
-    registry.register(user);
+    final UserSession user = roomManager.createRoom(createRoomDTO.getUserName(), createRoomDTO.getUserId(),
+            createRoomDTO.getIsAudioOn(), createRoomDTO.getIsVideoOn(), session, participant);
+    userRegistry.register(user);
   }
 
   private void exitRoom(UserSession user) throws IOException {
-    roomManager.leave(user);
-    registry.removeBySession(user.getSession());
+    roomManager.leaveRoom(user);
+    userRegistry.removeBySession(user.getSession());
   }
 
   private void sendChat(JsonObject receivedMessage) throws IOException {
     SendChatDTO sendChatDTO = messageParser.parseForSendChat(receivedMessage);
-    UserSession messageSender = registry.getByUserId(sendChatDTO.getSenderId());
-    UserSession messageReceiver = registry.getByUserId(sendChatDTO.getReceiverId());
+    UserSession messageSender = userRegistry.getByUserId(sendChatDTO.getSenderId());
+    UserSession messageReceiver = userRegistry.getByUserId(sendChatDTO.getReceiverId());
 
     messageReceiver.sendChat(messageSender, sendChatDTO.getMessage());
   }
 
   private void sendChatToAll(JsonObject receivedMessage) throws IOException {
     SendChatDTO sendChatDTO = messageParser.parseForSendChat(receivedMessage);
-    UserSession messageSender = registry.getByUserId(sendChatDTO.getSenderId());
+    UserSession messageSender = userRegistry.getByUserId(sendChatDTO.getSenderId());
     String roomId = messageSender.getRoomId();
 
     List<UserSession> receiverList = roomManager.getRoom(roomId).getParticipants().stream().toList();
@@ -227,14 +239,14 @@ public class CallHandler extends TextWebSocketHandler {
   private void sendEmoji(JsonObject receivedMessage) throws IOException {
     SendEmojiDTO sendEmojiDTO = messageParser.parseForSendEmoji(receivedMessage);
 
-    UserSession emojiReceiver = registry.getByUserId(sendEmojiDTO.getReceiverId());
-    UserSession emojiSender = registry.getByUserId(sendEmojiDTO.getSenderId());
+    UserSession emojiReceiver = userRegistry.getByUserId(sendEmojiDTO.getReceiverId());
+    UserSession emojiSender = userRegistry.getByUserId(sendEmojiDTO.getSenderId());
     emojiReceiver.sendEmoji(emojiSender, sendEmojiDTO.getEmoji());
   }
 
   private void sendEmojiToAll(JsonObject receivedMessage) throws IOException {
     SendEmojiDTO sendEmojiDTO = messageParser.parseForSendEmoji(receivedMessage);
-    UserSession emojiSender = registry.getByUserId(sendEmojiDTO.getSenderId());
+    UserSession emojiSender = userRegistry.getByUserId(sendEmojiDTO.getSenderId());
     String roomId = emojiSender.getRoomId();
 
     List<UserSession> receiverList = roomManager.getRoom(roomId).getParticipants().stream().toList();
@@ -242,8 +254,20 @@ public class CallHandler extends TextWebSocketHandler {
   }
 
   private void changeName(String userId, String newName) throws IOException {
-    UserSession userSession = registry.getByUserId(userId);
+    UserSession userSession = userRegistry.getByUserId(userId);
     Room room = roomManager.getRoom(userSession.getRoomId());
     userSession.changeName(newName, room);
+  }
+
+  private void changeAudioState(String userId, Boolean turnAudioOn) throws IOException {
+    UserSession userSession = userRegistry.getByUserId(userId);
+    List<UserSession> receiverList = roomManager.getRoom(userSession.getRoomId()).getParticipants().stream().toList();
+    userSession.changeAudioState(receiverList, turnAudioOn);
+  }
+
+  private void changeVideoState(String userId, Boolean turnVideoOn) throws IOException {
+    UserSession userSession = userRegistry.getByUserId(userId);
+    List<UserSession> receiverList = roomManager.getRoom(userSession.getRoomId()).getParticipants().stream().toList();
+    userSession.changeVideoState(receiverList, turnVideoOn);
   }
 }

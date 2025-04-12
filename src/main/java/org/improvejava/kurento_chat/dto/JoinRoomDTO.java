@@ -12,9 +12,15 @@ public class JoinRoomDTO {
 
     private final String roomId;
 
-    public JoinRoomDTO(String userName, String roomId) {
+    private final Boolean isAudioOn;
+
+    private final Boolean isVideoOn;
+
+    public JoinRoomDTO(String userName, String roomId, Boolean isAudioOn, Boolean isVideoOn) {
         this.userId = UUID.randomUUID().toString();
         this.userName = userName;
         this.roomId = roomId;
+        this.isAudioOn = isAudioOn;
+        this.isVideoOn = isVideoOn;
     }
 }

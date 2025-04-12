@@ -30,14 +30,14 @@ public class RoomManager {
 
   private final ConcurrentMap<String, Room> roomsByRoomId = new ConcurrentHashMap<>();
 
-  public UserSession createRoom(String userName, String userId, WebSocketSession session, Participant roomCreator) throws IOException {
+  public UserSession createRoom(String userName, String userId, Boolean isAudioOn, Boolean isVideoOn, WebSocketSession session, Participant roomCreator) throws IOException {
     Room room = new Room(kurento.createMediaPipeline());
     String roomId = room.getRoomId();
     roomsByRoomId.put(roomId, room);
     log.debug("Room {} is created", roomId);
 
     log.info("Participant {} / {} created room {}", userName, userId, roomId);
-    final UserSession participant = new UserSession(userName, roomId, userId, session, room.getPipeline());
+    final UserSession participant = new UserSession(userName, roomId, userId, isAudioOn, isVideoOn, session, room.getPipeline());
     announceNewParticipantEnter(participant);
     room.addParticipant(participant);
     room.changeRoomCreator(roomCreator);
@@ -48,6 +48,8 @@ public class RoomManager {
     createRoomMsg.addProperty("userName", participant.getUserName());
     createRoomMsg.addProperty("roomId", roomId);
     createRoomMsg.addProperty("creator", roomCreator.toString());
+    createRoomMsg.addProperty("audioOn", participant.getIsAudioOn().toString());
+    createRoomMsg.addProperty("videoOn", participant.getIsVideoOn().toString());
 
     participant.sendMessage(createRoomMsg);
     return participant;
@@ -65,12 +67,12 @@ public class RoomManager {
     return room;
   }
 
-  public UserSession joinRoom(String userName, String userId, String roomId, WebSocketSession session) throws IOException {
+  public UserSession joinRoom(String userName, String userId, String roomId, Boolean isAudioOn, Boolean isVideoOn, WebSocketSession session) throws IOException {
     Room room = getRoom(roomId);
 
     log.info("ROOM {}: adding participant {} / {}", roomId, userName, userId);
 
-    final UserSession participant = new UserSession(userName, roomId, userId, session, room.getPipeline());
+    final UserSession participant = new UserSession(userName, roomId, userId, isAudioOn, isVideoOn, session, room.getPipeline());
     announceNewParticipantEnter(participant);
     room.addParticipant(participant);
     noticeParticipantsList(participant);
@@ -105,6 +107,8 @@ public class RoomManager {
     newParticipantMsg.addProperty("action", "sendExistingUsers");
     newParticipantMsg.addProperty("userId", newParticipant.getUserId());
     newParticipantMsg.addProperty("userName", newParticipant.getUserName());
+    newParticipantMsg.addProperty("audioOn", newParticipant.getIsAudioOn().toString());
+    newParticipantMsg.addProperty("videoOn", newParticipant.getIsVideoOn().toString());
 
     Room room = getRoom(newParticipant.getRoomId());
 
@@ -125,6 +129,7 @@ public class RoomManager {
   }
 
   // 방에 새로 참가하고자 하는 사용자에게 기존의 참가자 리스트 전송
+  // participant 요소 삭제 & if audio, video 상태 추가 필요하면 같이 수정 예정
   public void noticeParticipantsList(UserSession user) throws IOException {
     final JsonArray participantsArray = new JsonArray();
 

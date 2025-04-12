@@ -17,14 +17,18 @@ public class MessageParser {
      */
     public JoinRoomDTO parseForJoinRoom(JsonObject receivedMessage) {
         return new JoinRoomDTO(receivedMessage.get("userName").getAsString(),
-                receivedMessage.get("roomId").getAsString());
+                receivedMessage.get("roomId").getAsString(),
+                receivedMessage.get("audioOn").getAsBoolean(),
+                receivedMessage.get("videoOn").getAsBoolean());
     }
 
     /**
      * 받은 메시지를 방 생성 가능하게 파싱
      */
     public CreateRoomDTO parseForCreateRoom(JsonObject receivedMessage) {
-        return new CreateRoomDTO(receivedMessage.get("userName").getAsString());
+        return new CreateRoomDTO(receivedMessage.get("userName").getAsString(),
+                receivedMessage.get("audioOn").getAsBoolean(),
+                receivedMessage.get("videoOn").getAsBoolean());
     }
 
     /**
