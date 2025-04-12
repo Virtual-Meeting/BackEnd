@@ -88,7 +88,7 @@ public class RoomManager {
     log.info("Room {} removed and closed", room.getRoomId());
   }
 
-  public void leaveRoom(UserSession userSession) throws IOException {
+public void leaveRoom(UserSession userSession) throws IOException {
     Room room = getRoom(userSession.getRoomId());
     if (room != null) {
       log.debug("PARTICIPANT {} / {}: Leaving room {}", userSession.getUserName(), userSession.getUserId(), userSession.getRoomId());
@@ -118,7 +118,7 @@ public class RoomManager {
 
     for (final UserSession participant : room.getParticipants()) {
       try {
-        participant.sendMessage(newParticipantMsg);
+        participant.sendChat(newParticipantMsg);
       } catch (final IOException e) {
         log.debug("ROOM {}: participant {} / {} could not be notified", newParticipant.getRoomId(), participant.getUserName(), participant.getUserId());
       }
@@ -157,7 +157,7 @@ public class RoomManager {
     log.debug("PARTICIPANT {} / {} : sending a list of {} participants", user.getUserName(), user.getUserId(),
             participantsArray.size());
 
-    user.sendMessage(existingParticipantsMsg);
+    user.sendChat(existingParticipantsMsg);
   }
 
   private void removeParticipant(UserSession userSession) throws IOException {
@@ -177,7 +177,7 @@ public class RoomManager {
     for (final UserSession participant : room.getParticipants()) {
       try {
         participant.cancelVideoFrom(userSession.getUserId());
-        participant.sendMessage(participantLeftJson);
+        participant.sendChat(participantLeftJson);
       } catch (final IOException e) {
         unnotifiedParticipants.add(participant.getUserId());
       }
@@ -200,7 +200,7 @@ public class RoomManager {
 
       for (final UserSession participant : room.getParticipants()) {
         try {
-          participant.sendMessage(roomLeaderChangeMessage);
+          participant.sendChat(roomLeaderChangeMessage);
         } catch (final IOException e) {
           unnotifiedParticipants.add(participant.getUserId());
         }
