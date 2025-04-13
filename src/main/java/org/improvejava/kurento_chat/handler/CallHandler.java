@@ -10,7 +10,6 @@ import org.improvejava.kurento_chat.dto.CreateRoomDTO;
 import org.improvejava.kurento_chat.dto.JoinRoomDTO;
 import org.improvejava.kurento_chat.room.Room;
 import org.improvejava.kurento_chat.room.RoomManager;
-import org.improvejava.kurento_chat.user.Participant;
 import org.improvejava.kurento_chat.user.UserRegistry;
 import org.improvejava.kurento_chat.user.UserSession;
 import org.kurento.client.IceCandidate;
@@ -208,9 +207,8 @@ public class CallHandler extends TextWebSocketHandler {
     log.info("PARTICIPANT {} / {} : trying to make room", createRoomDTO.getUserName(), createRoomDTO.getUserId());
 
     // 추후 프론트와 협의 후 삭제
-    Participant participant = new Participant(createRoomDTO.getUserId(), createRoomDTO.getUserName());
     final UserSession user = roomManager.createRoom(createRoomDTO.getUserName(), createRoomDTO.getUserId(),
-            createRoomDTO.getIsAudioOn(), createRoomDTO.getIsVideoOn(), session, participant);
+            createRoomDTO.getIsAudioOn(), createRoomDTO.getIsVideoOn(), session);
     userRegistry.register(user);
   }
 

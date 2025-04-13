@@ -13,7 +13,6 @@ import org.springframework.web.socket.WebSocketSession;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
@@ -278,7 +277,6 @@ public class UserSession implements Closeable {
 
   static public void sendChatToAll(UserSession sender, List<UserSession> recieverList, String message) throws IOException {
     JsonObject messageToReceiver = new JsonObject();
-    List<Participant> receivedMembers = new ArrayList<Participant>();
 
     for (UserSession reciever : recieverList) {
       if (reciever.getUserId().equals(sender.userId)) {continue;}
@@ -291,9 +289,6 @@ public class UserSession implements Closeable {
       messageToReceiver.addProperty("receiverName", reciever.getUserName());
       messageToReceiver.addProperty("message", message);
       messageToReceiver.addProperty("isSendToAll", true);
-
-      Participant participant = new Participant(reciever.getUserId(), reciever.getUserName());
-      receivedMembers.add(participant);
 
       synchronized (reciever.getSession()) {
         reciever.getSession().sendMessage(new TextMessage(messageToReceiver.toString()));
@@ -338,7 +333,6 @@ public class UserSession implements Closeable {
   // 같은 방에 있는 사용자끼리만 보낼 수 있게 설정 추가 필요
   static public void sendEmojiToAll(UserSession sender, List<UserSession> recieverList, String selectedEmoji) throws IOException {
     JsonObject emojiToSend = new JsonObject();
-    List<Participant> receivedMembers = new ArrayList<Participant>();
 
     for (UserSession receiver : recieverList) {
       if (receiver.getUserId().equals(sender.userId)) {continue;}
@@ -351,9 +345,6 @@ public class UserSession implements Closeable {
       emojiToSend.addProperty("receiverName", receiver.getUserName());
       emojiToSend.addProperty("emoji", selectedEmoji);
       emojiToSend.addProperty("isSendToAll", true);
-
-      Participant participant = new Participant(receiver.getUserId(), receiver.getUserName());
-      receivedMembers.add(participant);
 
       synchronized (receiver.getSession()) {
         receiver.getSession().sendMessage(new TextMessage(emojiToSend.toString()));

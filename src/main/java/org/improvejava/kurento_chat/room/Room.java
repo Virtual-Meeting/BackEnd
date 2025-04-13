@@ -2,7 +2,6 @@ package org.improvejava.kurento_chat.room;
 
 import com.google.gson.JsonObject;
 import lombok.Getter;
-import org.improvejava.kurento_chat.user.Participant;
 import org.improvejava.kurento_chat.user.UserSession;
 import org.improvejava.kurento_chat.utils.RoomIdGenerator;
 import org.kurento.client.Continuation;
@@ -32,11 +31,16 @@ public class Room implements Closeable {
   private final String roomId;
 
   @Getter
-  private Participant roomLeader;
+  private String roomLeaderId;
 
-  public Room(MediaPipeline pipeline) {
+  @Getter
+  private String roomLeaderName;
+
+  public Room(MediaPipeline pipeline, String roomLeaderId, String roomLeaderName) {
     this.roomId = RoomIdGenerator.generateRoomId();
     this.pipeline = pipeline;
+    this.roomLeaderId = roomLeaderId;
+    this.roomLeaderName = roomLeaderName;
     log.info("{} 방이 생성되었습니다.", this.roomId);
   }
 
@@ -66,8 +70,9 @@ public class Room implements Closeable {
     }
   }
 
-  public void changeRoomCreator(Participant newCreator) {
-    roomLeader = newCreator;
+  public void changeRoomLeader(String roomLeaderId, String userName) {
+    this.roomLeaderId = roomLeaderId;
+    this.roomLeaderName = userName;
   }
 
   @PreDestroy

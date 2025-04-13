@@ -4,7 +4,6 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonPrimitive;
-import org.improvejava.kurento_chat.user.Participant;
 import org.improvejava.kurento_chat.user.UserSession;
 import org.kurento.client.KurentoClient;
 import org.slf4j.Logger;
@@ -30,8 +29,8 @@ public class RoomManager {
 
   private final ConcurrentMap<String, Room> roomsByRoomId = new ConcurrentHashMap<>();
 
-  public UserSession createRoom(String userName, String userId, Boolean isAudioOn, Boolean isVideoOn, WebSocketSession session, Participant roomCreator) throws IOException {
-    Room room = new Room(kurento.createMediaPipeline());
+  public UserSession createRoom(String userName, String userId, Boolean isAudioOn, Boolean isVideoOn, WebSocketSession session) throws IOException {
+    Room room = new Room(kurento.createMediaPipeline(), userId, userName);
     String roomId = room.getRoomId();
     roomsByRoomId.put(roomId, room);
     log.debug("Room {} is created", roomId);
@@ -40,14 +39,15 @@ public class RoomManager {
     final UserSession participant = new UserSession(userName, roomId, userId, isAudioOn, isVideoOn, session, room.getPipeline());
     announceNewParticipantEnter(participant);
     room.addParticipant(participant);
-    room.changeRoomCreator(roomCreator);
+    room.changeRoomLeader(userId, userName);
 
     JsonObject createRoomMsg = new JsonObject();
     createRoomMsg.addProperty("action", "roomCreated");
     createRoomMsg.addProperty("userId", participant.getUserId());
     createRoomMsg.addProperty("userName", participant.getUserName());
     createRoomMsg.addProperty("roomId", roomId);
-    createRoomMsg.addProperty("creator", roomCreator.toString());
+    createRoomMsg.addProperty("roomLeaderId", userId);
+    createRoomMsg.addProperty("roomLeaderName", userName);
     createRoomMsg.addProperty("audioOn", participant.getIsAudioOn().toString());
     createRoomMsg.addProperty("videoOn", participant.getIsVideoOn().toString());
 
@@ -104,7 +104,7 @@ public class RoomManager {
   // 기존의 사용자에게 새 사용자의 방 합류 알림
   private Collection<String> announceNewParticipantEnter(UserSession newParticipant) throws IOException {
     final JsonObject newParticipantMsg = new JsonObject();
-    newParticipantMsg.addProperty("action", "sendExistingUsers");
+    newParticipantMsg.addProperty("action", "newUserJoined");
     newParticipantMsg.addProperty("userId", newParticipant.getUserId());
     newParticipantMsg.addProperty("userName", newParticipant.getUserName());
     newParticipantMsg.addProperty("audioOn", newParticipant.getIsAudioOn().toString());
@@ -131,28 +131,30 @@ public class RoomManager {
   // 방에 새로 참가하고자 하는 사용자에게 기존의 참가자 리스트 전송
   // participant 요소 삭제 & if audio, video 상태 추가 필요하면 같이 수정 예정
   public void noticeParticipantsList(UserSession user) throws IOException {
-    final JsonArray participantsArray = new JsonArray();
-
     Room room = getRoom(user.getRoomId());
+    final JsonArray participantsArray = new JsonArray();
 
     for (final UserSession participant : room.getParticipants()) {
       if (!participant.equals(user)) {
-        final Participant participantDTO = new Participant();
-        participantDTO.setUserId(participant.getUserId());
-        participantDTO.setUserName(participant.getUserName());
+        JsonObject participantJson = new JsonObject();
+        participantJson.addProperty("userId", participant.getUserId());
+        participantJson.addProperty("userName", participant.getUserName());
+        participantJson.addProperty("audioOn", participant.getIsAudioOn().toString());
+        participantJson.addProperty("videoOn", participant.getIsVideoOn().toString());
 
-        final JsonElement jsonParticipant = new JsonPrimitive(participantDTO.toString());
+        final JsonElement jsonParticipant = new JsonPrimitive(participantJson.toString());
 
         participantsArray.add(jsonParticipant);
       }
     }
 
     final JsonObject existingParticipantsMsg = new JsonObject();
-    existingParticipantsMsg.addProperty("action", "newUserJoined");
+    existingParticipantsMsg.addProperty("action", "sendExistingUsers");
     existingParticipantsMsg.addProperty("userId", user.getUserId());
     existingParticipantsMsg.addProperty("userName", user.getUserName());
     existingParticipantsMsg.add("participants", participantsArray);
-    existingParticipantsMsg.addProperty("creator", room.getRoomLeader().toString());
+    existingParticipantsMsg.addProperty("roomLeaderId", room.getRoomLeaderId());
+    existingParticipantsMsg.addProperty("roomLeaderName", room.getRoomLeaderName());
 
     log.debug("PARTICIPANT {} / {} : sending a list of {} participants", user.getUserName(), user.getUserId(),
             participantsArray.size());
@@ -189,14 +191,14 @@ public class RoomManager {
     }
     unnotifiedParticipants.clear();
 
-    if (userSession.getUserId().equals(room.getRoomLeader().getUserId()) && !room.getParticipants().isEmpty()) {
+    if (userSession.getUserId().equals(room.getRoomLeaderId()) && !room.getParticipants().isEmpty()) {
       UserSession newRoomLeader = room.getRandomParticipant();
-      Participant roomLeader = new Participant(newRoomLeader.getUserId(), newRoomLeader.getUserName());
-      room.changeRoomCreator(roomLeader);
+      room.changeRoomLeader(newRoomLeader.getUserId(), newRoomLeader.getUserName());
 
       JsonObject roomLeaderChangeMessage = new JsonObject();
-      roomLeaderChangeMessage.addProperty("action", "creatorChanged");
-      roomLeaderChangeMessage.addProperty("creator", room.getRoomLeader().toString());
+      roomLeaderChangeMessage.addProperty("action", "leaderChanged");
+      roomLeaderChangeMessage.addProperty("roomLeaderId", room.getRoomLeaderId());
+      roomLeaderChangeMessage.addProperty("roomLeaderName", room.getRoomLeaderName());
 
       for (final UserSession participant : room.getParticipants()) {
         try {
