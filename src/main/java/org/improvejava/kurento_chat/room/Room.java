@@ -87,7 +87,7 @@ public class Room implements Closeable {
         user.close();
         final JsonObject participantLeftJson = new JsonObject();
         participantLeftJson.addProperty("action", "exitRoom");
-        user.sendChat(participantLeftJson);
+        user.sendMessage(participantLeftJson);
       } catch (IOException e) {
         log.debug("{} 방 - {} ({}) 사용자에게 퇴장 알림 메시지를 보내는 데 실패했습니다.", this.roomId, user.getUserName(), user.getUserId(), e);
       }
