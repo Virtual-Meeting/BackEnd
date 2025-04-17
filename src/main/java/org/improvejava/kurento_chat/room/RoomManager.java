@@ -118,7 +118,7 @@ public void leaveRoom(UserSession userSession) throws IOException {
 
     for (final UserSession participant : room.getParticipants()) {
       try {
-        participant.sendChat(newParticipantMsg);
+        participant.sendMessage(newParticipantMsg);
       } catch (final IOException e) {
         log.debug("ROOM {}: participant {} / {} could not be notified", newParticipant.getRoomId(), participant.getUserName(), participant.getUserId());
       }
@@ -159,7 +159,7 @@ public void leaveRoom(UserSession userSession) throws IOException {
     log.debug("PARTICIPANT {} / {} : sending a list of {} participants", user.getUserName(), user.getUserId(),
             participantsArray.size());
 
-    user.sendChat(existingParticipantsMsg);
+    user.sendMessage(existingParticipantsMsg);
   }
 
   private void removeParticipant(UserSession userSession) throws IOException {
@@ -179,7 +179,7 @@ public void leaveRoom(UserSession userSession) throws IOException {
     for (final UserSession participant : room.getParticipants()) {
       try {
         participant.cancelVideoFrom(userSession.getUserId());
-        participant.sendChat(participantLeftJson);
+        participant.sendMessage(participantLeftJson);
       } catch (final IOException e) {
         unnotifiedParticipants.add(participant.getUserId());
       }
@@ -202,7 +202,7 @@ public void leaveRoom(UserSession userSession) throws IOException {
 
       for (final UserSession participant : room.getParticipants()) {
         try {
-          participant.sendChat(roomLeaderChangeMessage);
+          participant.sendMessage(roomLeaderChangeMessage);
         } catch (final IOException e) {
           unnotifiedParticipants.add(participant.getUserId());
         }
