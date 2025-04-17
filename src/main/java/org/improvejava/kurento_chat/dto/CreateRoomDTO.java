@@ -13,9 +13,15 @@ public class CreateRoomDTO {
 
     private final String roomId;
 
-    public CreateRoomDTO(String userName) {
+    private final Boolean isAudioOn;
+
+    private final Boolean isVideoOn;
+
+    public CreateRoomDTO(String userName, Boolean isAudioOn, Boolean isVideoOn) {
         this.userId = UUID.randomUUID().toString();
         this.userName = userName;
         this.roomId = RoomIdGenerator.generateRoomId();
+        this.isAudioOn = isAudioOn;
+        this.isVideoOn = isVideoOn;
     }
 }

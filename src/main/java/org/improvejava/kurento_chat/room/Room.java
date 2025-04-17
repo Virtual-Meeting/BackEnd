@@ -1,8 +1,9 @@
 package org.improvejava.kurento_chat.room;
 
 import com.google.gson.JsonObject;
-import org.improvejava.kurento_chat.user.Participant;
+import lombok.Getter;
 import org.improvejava.kurento_chat.user.UserSession;
+import org.improvejava.kurento_chat.utils.RoomIdGenerator;
 import org.kurento.client.Continuation;
 import org.kurento.client.MediaPipeline;
 import org.slf4j.Logger;
@@ -22,22 +23,25 @@ public class Room implements Closeable {
   private final Logger log = LoggerFactory.getLogger(Room.class);
 
   private final ConcurrentMap<String, UserSession> participants = new ConcurrentHashMap<>();
+
+  @Getter
   private final MediaPipeline pipeline;
+
+  @Getter
   private final String roomId;
-  private Participant roomCreator;
 
-  public Room(String roomId, MediaPipeline pipeline) {
-    this.roomId = roomId;
+  @Getter
+  private String roomLeaderId;
+
+  @Getter
+  private String roomLeaderName;
+
+  public Room(MediaPipeline pipeline, String roomLeaderId, String roomLeaderName) {
+    this.roomId = RoomIdGenerator.generateRoomId();
     this.pipeline = pipeline;
-    log.info("ROOM {} has been created", this.roomId);
-  }
-
-  public String getRoomId() {
-    return roomId;
-  }
-
-  public MediaPipeline getPipeline() {
-    return pipeline;
+    this.roomLeaderId = roomLeaderId;
+    this.roomLeaderName = roomLeaderName;
+    log.info("{} 방이 생성되었습니다.", this.roomId);
   }
 
   public Collection<UserSession> getParticipants() {
@@ -50,20 +54,25 @@ public class Room implements Closeable {
     return participants.get(keyForRandomParticipant);
   }
 
-  public Participant getRoomCreator() {
-    return roomCreator;
-  }
-
   public void addParticipant(UserSession participant) {
     participants.put(participant.getUserId(), participant);
   }
 
   public void removeParticipant(String userId) {
-    participants.remove(userId);
+    if (!participants.containsKey(userId)) {
+      throw new IllegalArgumentException("해당 ID를 가진 사용자는 참가자 리스트에 없으므로 삭제할 수 없습니다.");
+    }
+
+    try (UserSession user = participants.remove(userId)) {
+
+    } catch (Exception e) {
+      log.warn("참가자 삭제 후 사용자 제거 중 오류가 발생했습니다.", e);
+    }
   }
 
-  public void changeRoomCreator(Participant newCreator) {
-    roomCreator = newCreator;
+  public void changeRoomLeader(String roomLeaderId, String userName) {
+    this.roomLeaderId = roomLeaderId;
+    this.roomLeaderName = userName;
   }
 
   @PreDestroy
@@ -80,8 +89,7 @@ public class Room implements Closeable {
         participantLeftJson.addProperty("action", "exitRoom");
         user.sendChat(participantLeftJson);
       } catch (IOException e) {
-        log.debug("ROOM {}: Could not invoke close on participant {} / {}", this.roomId, user.getUserName(), user.getUserId(),
-                e);
+        log.debug("{} 방 - {} ({}) 사용자에게 퇴장 알림 메시지를 보내는 데 실패했습니다.", this.roomId, user.getUserName(), user.getUserId(), e);
       }
     }
 
@@ -91,15 +99,15 @@ public class Room implements Closeable {
 
       @Override
       public void onSuccess(Void result) throws Exception {
-        log.trace("ROOM {}: Released Pipeline", Room.this.roomId);
+        log.trace("{} 방 - MediaPipeline 해제 완료", Room.this.roomId);
       }
 
       @Override
       public void onError(Throwable cause) throws Exception {
-        log.warn("ROOM {}: Could not release Pipeline", Room.this.roomId);
+        log.warn("{} 방 - MediaPipeline 해제 시 오류 발생", Room.this.roomId, cause);
       }
     });
 
-    log.debug("ROOM {} closed", this.roomId);
+    log.debug("{} 방이 정상적으로 닫혔습니다.", this.roomId);
   }
 }
